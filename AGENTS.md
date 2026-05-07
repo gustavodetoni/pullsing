@@ -73,3 +73,12 @@ We will implement in small slices:
 3) CRUD + publishing updates
 4) SDK snapshot + stream + local evaluation
 5) integration tests + docs polish
+   
+- Prioritize performance, simplicity, and idiomatic code in Go.
+- Don't create microservices in the MVP.
+- Don't use Kafka/Kubernetes in the MVP.
+- Use PostgreSQL for persistence.
+- Use Redis for caching and Pub/Sub.
+- Use gRPC Streams for real-time.
+- The Go SDK should have local caching and local evaluation.
+- Every significant change should be tested.

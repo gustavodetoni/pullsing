@@ -1,0 +1,13 @@
+app_name: pullsing-server
+environment: development
+http:
+  addr: :8080
+  read_timeout: 5s
+  read_header_timeout: 3s
+  write_timeout: 10s
+  idle_timeout: 30s
+  shutdown_timeout: 10s
+postgres:
+  url: postgres://pullsing:pullsing@localhost:5432/pullsing?sslmode=disable
+redis:
+  addr: localhost:6379
