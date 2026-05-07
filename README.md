@@ -1,6 +1,6 @@
 # Pullsing
 
-Pullsing e uma plataforma open source de **feature flags** e **remote configuration** pensada para entregar o essencial com baixa latencia, topologia simples e uma experiencia de desenvolvimento direta.
+Pullsing e uma plataforma de **feature flags** e **remote configuration** pensada para entregar o essencial com baixa latencia, topologia simples e uma experiencia de desenvolvimento direta.
 
 O foco do MVP e bem definido:
 
