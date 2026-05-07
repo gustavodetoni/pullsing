@@ -2,19 +2,28 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
+	"os"
 	"time"
 
 	"github.com/gustavodetoni/pullsing/sdk/go/client"
 )
 
+const (
+	defaultAddr    = "localhost:50051"
+	defaultFlagKey = "checkout-redesign"
+)
+
 func main() {
 	ctx := context.Background()
 
-	sdk, err := client.NewClient(ctx, client.Config{
-		Addr:   "localhost:50051",
-		EnvKey: "dev-secret-key",
-	})
+	cfg, flagKey, err := loadConfig()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	sdk, err := client.NewClient(ctx, cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -25,5 +34,39 @@ func main() {
 	}()
 
 	time.Sleep(500 * time.Millisecond)
-	log.Printf("new_button enabled=%t", sdk.Enabled("new_button"))
+	log.Printf("%s enabled=%t", flagKey, sdk.Enabled(flagKey))
+}
+
+func loadConfig() (client.Config, string, error) {
+	envKey := firstNonEmpty(os.Getenv("PULLSING_API_KEY"), os.Getenv("PULLSING_ENV_KEY"))
+	if envKey == "" {
+		return client.Config{}, "", errors.New(
+			"set PULLSING_API_KEY to the api_key returned by POST /v1/projects/{id}/environments",
+		)
+	}
+
+	addr := os.Getenv("PULLSING_ADDR")
+	if addr == "" {
+		addr = defaultAddr
+	}
+
+	flagKey := os.Getenv("PULLSING_FLAG_KEY")
+	if flagKey == "" {
+		flagKey = defaultFlagKey
+	}
+
+	return client.Config{
+		Addr:   addr,
+		EnvKey: envKey,
+	}, flagKey, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+
+	return ""
 }

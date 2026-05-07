@@ -1,6 +1,6 @@
 # Quickstart
 
-Este quickstart cobre o estado atual do repositorio: **API admin HTTP + Postgres + Redis**. O contrato gRPC do SDK ja existe, mas o servidor gRPC e o SDK Go ainda nao estao implementados neste branch.
+Este quickstart cobre o estado atual do repositorio: **API admin HTTP + gRPC SDK + Postgres + Redis**.
 
 ## Pre-requisitos
 
@@ -106,7 +106,7 @@ Resposta esperada:
 }
 ```
 
-Guarde a `api_key`. Ela sera usada pelo SDK quando a interface gRPC estiver ativa.
+Guarde a `api_key`. Ela e a credencial real que o SDK envia no campo `env_key`.
 
 ### 3. Criar flag booleana
 
@@ -132,7 +132,25 @@ Cada criacao de flag incrementa `revision` do ambiente e publica um evento em Re
 }
 ```
 
-### 4. Rotacionar API key
+### 4. Executar o exemplo do SDK Go
+
+Use exatamente a `api_key` retornada no passo 2 e uma flag que exista com a mesma `key` consultada pelo exemplo. Por padrao, o exemplo le `checkout-redesign`, entao o passo 3 ja cria a flag correta.
+
+```bash
+PULLSING_API_KEY='psk_...' \
+PULLSING_FLAG_KEY='checkout-redesign' \
+go run ./sdk/go/examples/simple
+```
+
+Se o servidor estiver ouvindo gRPC em outro endereco, ajuste `PULLSING_ADDR`. O default do exemplo e `localhost:50051`.
+
+Saida esperada:
+
+```text
+2026/05/06 00:00:00 checkout-redesign enabled=true
+```
+
+### 5. Rotacionar API key
 
 ```bash
 curl -X POST http://localhost:8080/v1/environments/1/api-keys:rotate
@@ -163,6 +181,5 @@ make proto
 ## Limites atuais
 
 - flags apenas do tipo `bool`
-- sem leitura de snapshot no servidor
-- sem stream gRPC em execucao
-- sem SDK Go funcional neste branch
+- sem targeting avancado
+- sem tipos de configuracao alem de `bool`
