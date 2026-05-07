@@ -10,7 +10,11 @@ Este documento descreve o estado atual do MVP no código e separa explicitamente
 - Admin API HTTP/JSON em `internal/interfaces/http` com endpoints para:
   - `POST /v1/projects`
   - `POST /v1/projects/{id}/environments`
+  - `GET /v1/environments/{id}/flags`
   - `POST /v1/environments/{id}/flags`
+  - `GET /v1/environments/{id}/flags/{flag_id}`
+  - `PATCH /v1/environments/{id}/flags/{flag_id}`
+  - `DELETE /v1/environments/{id}/flags/{flag_id}`
   - `POST /v1/environments/{id}/api-keys:rotate`
   - `GET /healthz` e `GET /readyz`
 - Camada de aplicação em `internal/application` com `AdminService`.
@@ -44,16 +48,14 @@ Este documento descreve o estado atual do MVP no código e separa explicitamente
 
 - A autenticação do SDK usa `env_api_key` carregando a API key do ambiente no payload gRPC; ainda não há metadata/header dedicado.
 - Não há autenticação/autorização na Admin API.
-- Não há CRUD completo: hoje o código cobre apenas criação de projeto, ambiente, flag e rotação de API key.
+- O CRUD administrativo ainda não é amplo para todos os recursos: hoje há criação de projeto e ambiente, rotação de API key e ciclo de vida de flags com listagem, leitura, atualização e arquivamento.
 - O stream incremental reconstrói o estado final desde uma revisão usando a tabela atual de flags; um changelog dedicado ainda não existe.
 
 ## Roadmap já indicado pelo repositório
 
-- Implementar a interface gRPC `SDKService` já definida em protobuf.
-- Entregar snapshot inicial por ambiente e stream de atualizações por revisão.
-- Fazer cada instância do servidor consumir eventos do Redis e repassar updates aos clientes gRPC conectados.
-- Implementar o SDK Go com cache local e avaliação local usando snapshot imutável.
-- Expandir a API administrativa além dos comandos de criação.
+- Expandir a API administrativa para cobrir leitura e mutações dos demais recursos além de flags.
+- Endurecer autenticação/autorização da Admin API.
+- Evoluir o mecanismo de recuperação incremental para não depender apenas da tabela materializada atual.
 
 ## Visão arquitetural do MVP
 
@@ -66,7 +68,7 @@ Este documento descreve o estado atual do MVP no código e separa explicitamente
 ## Testes existentes
 
 - Testes unitários da aplicação cobrindo publicação de evento Redis ao criar flag.
-- Testes HTTP cobrindo o handler de criação de flag.
+- Testes HTTP cobrindo handlers de criação, listagem, leitura, atualização e arquivamento de flags.
 - Testes gRPC cobrindo autenticação, backlog inicial e update em tempo real.
 
 Isso indica que o projeto já valida as fatias “escrita administrativa + persistência + publicação” e “distribuição para SDK + avaliação local”, embora ainda faltem cenários de integração com infraestrutura real.

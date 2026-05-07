@@ -9,18 +9,17 @@ Os benchmarks do Pullsing devem validar se o desenho do servidor e do SDK atende
 - comportamento estável sob reconexão e fanout de updates;
 - ausência de rede no hot path de avaliação do SDK.
 
-Este documento descreve metas, metodologia proposta e métricas alvo. Ele não apresenta números medidos porque, no estado atual do repositório, o SDK Go ainda não foi implementado e não existem benches executáveis publicados.
+Este documento descreve metas, metodologia proposta e métricas alvo. Ele não apresenta números medidos porque, no estado atual do repositório, ainda não existem benchmarks executáveis publicados nem uma rodada de medição versionada.
 
 ## Estado atual
 
 Hoje o repositório fornece:
 
 - contrato protobuf/gRPC em `proto/pullsing/v1/sdk.proto`;
-- esqueleto do módulo `sdk/go`;
-- nenhuma implementação do SDK;
+- SDK Go implementado em `sdk/go` com bootstrap por snapshot, stream incremental, reconnect e avaliação local;
 - nenhum benchmark automatizado sob `sdk/go` ou `tests/load`.
 
-Portanto, qualquer número neste momento seria fictício. O objetivo aqui é definir como medir quando houver código real.
+Portanto, qualquer número neste momento seria fictício. O objetivo aqui é definir como medir e publicar resultados agora que já existe código real do SDK e do fluxo de distribuição.
 
 ## O que precisa ser medido
 
@@ -204,8 +203,6 @@ Quando os benchmarks existirem de fato, este documento deve passar a incluir tab
 
 Para transformar este plano em benchmark real, faltam:
 
-- implementar o SDK Go;
-- definir API pública mínima de leitura;
 - criar benches em `sdk/go/...` com `testing.B`;
 - criar cenário de integração com servidor, Postgres e Redis;
 - publicar primeira rodada de números com comando exato e ambiente descrito.
