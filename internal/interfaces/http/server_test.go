@@ -59,11 +59,165 @@ func TestCreateFlagHandler(t *testing.T) {
 	}
 }
 
+func TestListFlagsHandler(t *testing.T) {
+	t.Parallel()
+
+	admin := &fakeAdminService{
+		listFlagsFn: func(_ context.Context, environmentID int64, includeArchived bool) ([]domain.Flag, error) {
+			if environmentID != 12 {
+				t.Fatalf("ListFlags() environmentID = %d, want 12", environmentID)
+			}
+			if !includeArchived {
+				t.Fatal("ListFlags() includeArchived = false, want true")
+			}
+
+			return []domain.Flag{
+				{
+					ID:            5,
+					EnvironmentID: environmentID,
+					Key:           "new-checkout",
+					Name:          "New checkout",
+					Type:          domain.FlagTypeBool,
+				},
+			}, nil
+		},
+	}
+
+	server := New(config.Config{HTTPAddr: ":0", AppName: "pullsing", Environment: "test"}, log.Default(), admin)
+	request := httptest.NewRequest(http.MethodGet, "/v1/environments/12/flags?include_archived=true", nil)
+	recorder := httptest.NewRecorder()
+
+	server.httpServer.Handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	var response []domain.Flag
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	if len(response) != 1 || response[0].Key != "new-checkout" {
+		t.Fatalf("response = %#v, want one new-checkout flag", response)
+	}
+}
+
+func TestGetFlagHandler(t *testing.T) {
+	t.Parallel()
+
+	admin := &fakeAdminService{
+		getFlagFn: func(_ context.Context, environmentID, flagID int64) (domain.Flag, error) {
+			return domain.Flag{
+				ID:            flagID,
+				EnvironmentID: environmentID,
+				Key:           "new-checkout",
+				Name:          "New checkout",
+				Type:          domain.FlagTypeBool,
+			}, nil
+		},
+	}
+
+	server := New(config.Config{HTTPAddr: ":0", AppName: "pullsing", Environment: "test"}, log.Default(), admin)
+	request := httptest.NewRequest(http.MethodGet, "/v1/environments/12/flags/5", nil)
+	recorder := httptest.NewRecorder()
+
+	server.httpServer.Handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	var response domain.Flag
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	if response.ID != 5 {
+		t.Fatalf("response id = %d, want 5", response.ID)
+	}
+}
+
+func TestUpdateFlagHandler(t *testing.T) {
+	t.Parallel()
+
+	admin := &fakeAdminService{
+		updateFlagFn: func(_ context.Context, input application.UpdateFlagInput) (domain.Flag, error) {
+			if input.FlagID != 5 {
+				t.Fatalf("UpdateFlag() flagID = %d, want 5", input.FlagID)
+			}
+			if input.Name == nil || *input.Name != "Checkout V2" {
+				t.Fatalf("UpdateFlag() name = %#v, want Checkout V2", input.Name)
+			}
+
+			return domain.Flag{
+				ID:            input.FlagID,
+				EnvironmentID: input.EnvironmentID,
+				Key:           "new-checkout",
+				Name:          *input.Name,
+				Type:          domain.FlagTypeBool,
+				Revision:      8,
+			}, nil
+		},
+	}
+
+	server := New(config.Config{HTTPAddr: ":0", AppName: "pullsing", Environment: "test"}, log.Default(), admin)
+
+	body := bytes.NewBufferString(`{"name":"Checkout V2"}`)
+	request := httptest.NewRequest(http.MethodPatch, "/v1/environments/12/flags/5", body)
+	recorder := httptest.NewRecorder()
+
+	server.httpServer.Handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	var response domain.Flag
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	if response.Revision != 8 {
+		t.Fatalf("response revision = %d, want 8", response.Revision)
+	}
+}
+
+func TestArchiveFlagHandler(t *testing.T) {
+	t.Parallel()
+
+	admin := &fakeAdminService{
+		archiveFlagFn: func(_ context.Context, environmentID, flagID int64) (domain.Flag, error) {
+			return domain.Flag{
+				ID:            flagID,
+				EnvironmentID: environmentID,
+				Key:           "new-checkout",
+				Type:          domain.FlagTypeBool,
+				Revision:      9,
+			}, nil
+		},
+	}
+
+	server := New(config.Config{HTTPAddr: ":0", AppName: "pullsing", Environment: "test"}, log.Default(), admin)
+	request := httptest.NewRequest(http.MethodDelete, "/v1/environments/12/flags/5", nil)
+	recorder := httptest.NewRecorder()
+
+	server.httpServer.Handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, http.StatusNoContent)
+	}
+}
+
 type fakeAdminService struct {
 	createProjectFn     func(context.Context, application.CreateProjectInput) (domain.Project, error)
 	createEnvironmentFn func(context.Context, application.CreateEnvironmentInput) (application.EnvironmentWithAPIKey, error)
 	rotateAPIKeyFn      func(context.Context, int64) (string, error)
+	listFlagsFn         func(context.Context, int64, bool) ([]domain.Flag, error)
+	getFlagFn           func(context.Context, int64, int64) (domain.Flag, error)
 	createFlagFn        func(context.Context, application.CreateFlagInput) (domain.Flag, error)
+	updateFlagFn        func(context.Context, application.UpdateFlagInput) (domain.Flag, error)
+	archiveFlagFn       func(context.Context, int64, int64) (domain.Flag, error)
 }
 
 func (f *fakeAdminService) CreateProject(ctx context.Context, input application.CreateProjectInput) (domain.Project, error) {
@@ -87,9 +241,37 @@ func (f *fakeAdminService) RotateAPIKey(ctx context.Context, environmentID int64
 	return f.rotateAPIKeyFn(ctx, environmentID)
 }
 
+func (f *fakeAdminService) ListFlags(ctx context.Context, environmentID int64, includeArchived bool) ([]domain.Flag, error) {
+	if f.listFlagsFn == nil {
+		return nil, nil
+	}
+	return f.listFlagsFn(ctx, environmentID, includeArchived)
+}
+
+func (f *fakeAdminService) GetFlag(ctx context.Context, environmentID, flagID int64) (domain.Flag, error) {
+	if f.getFlagFn == nil {
+		return domain.Flag{}, nil
+	}
+	return f.getFlagFn(ctx, environmentID, flagID)
+}
+
 func (f *fakeAdminService) CreateFlag(ctx context.Context, input application.CreateFlagInput) (domain.Flag, error) {
 	if f.createFlagFn == nil {
 		return domain.Flag{}, nil
 	}
 	return f.createFlagFn(ctx, input)
+}
+
+func (f *fakeAdminService) UpdateFlag(ctx context.Context, input application.UpdateFlagInput) (domain.Flag, error) {
+	if f.updateFlagFn == nil {
+		return domain.Flag{}, nil
+	}
+	return f.updateFlagFn(ctx, input)
+}
+
+func (f *fakeAdminService) ArchiveFlag(ctx context.Context, environmentID, flagID int64) (domain.Flag, error) {
+	if f.archiveFlagFn == nil {
+		return domain.Flag{}, nil
+	}
+	return f.archiveFlagFn(ctx, environmentID, flagID)
 }

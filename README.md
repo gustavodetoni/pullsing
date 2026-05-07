@@ -83,7 +83,11 @@ Endpoints atuais:
 - `GET /readyz`
 - `POST /v1/projects`
 - `POST /v1/projects/{project_id}/environments`
+- `GET /v1/environments/{environment_id}/flags`
 - `POST /v1/environments/{environment_id}/flags`
+- `GET /v1/environments/{environment_id}/flags/{flag_id}`
+- `PATCH /v1/environments/{environment_id}/flags/{flag_id}`
+- `DELETE /v1/environments/{environment_id}/flags/{flag_id}`
 - `POST /v1/environments/{environment_id}/api-keys:rotate`
 
 Exemplo de criacao de flag booleana:
