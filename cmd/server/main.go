@@ -85,9 +85,24 @@ func main() {
 }
 
 func migrationDir() string {
-	if cwd, err := os.Getwd(); err == nil {
-		return filepath.Join(cwd, "migrations")
+	if dir := os.Getenv("PULLSING_MIGRATIONS_DIR"); dir != "" {
+		return dir
 	}
 
-	return "migrations"
+	candidates := make([]string, 0, 3)
+	if cwd, err := os.Getwd(); err == nil {
+		candidates = append(candidates, filepath.Join(cwd, "migrations"))
+	}
+	if exe, err := os.Executable(); err == nil {
+		candidates = append(candidates, filepath.Join(filepath.Dir(exe), "migrations"))
+	}
+	candidates = append(candidates, "migrations")
+
+	for _, candidate := range candidates {
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate
+		}
+	}
+
+	return candidates[0]
 }
