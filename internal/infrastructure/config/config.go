@@ -3,22 +3,27 @@ package config
 import (
 	"io"
 	"os"
+	"strconv"
 	"time"
 )
 
 const (
 	defaultHTTPAddr         = ":8080"
+	defaultGRPCAddr         = ":50051"
 	defaultShutdownTimeout  = 10 * time.Second
 	defaultReadTimeout      = 5 * time.Second
 	defaultReadHeaderTimout = 3 * time.Second
 	defaultWriteTimeout     = 10 * time.Second
 	defaultIdleTimeout      = 30 * time.Second
+	defaultGRPCClientBuffer = 16
 )
 
 type Config struct {
 	AppName           string
 	Environment       string
 	HTTPAddr          string
+	GRPCAddr          string
+	GRPCClientBuffer  int
 	ShutdownTimeout   time.Duration
 	ReadTimeout       time.Duration
 	ReadHeaderTimeout time.Duration
@@ -33,6 +38,8 @@ func Load() Config {
 		AppName:           getEnv("PULLSING_APP_NAME", "pullsing-server"),
 		Environment:       getEnv("PULLSING_ENV", "development"),
 		HTTPAddr:          getEnv("PULLSING_HTTP_ADDR", defaultHTTPAddr),
+		GRPCAddr:          getEnv("PULLSING_GRPC_ADDR", defaultGRPCAddr),
+		GRPCClientBuffer:  getEnvInt("PULLSING_GRPC_CLIENT_BUFFER", defaultGRPCClientBuffer),
 		ShutdownTimeout:   getEnvDuration("PULLSING_SHUTDOWN_TIMEOUT", defaultShutdownTimeout),
 		ReadTimeout:       getEnvDuration("PULLSING_HTTP_READ_TIMEOUT", defaultReadTimeout),
 		ReadHeaderTimeout: getEnvDuration("PULLSING_HTTP_READ_HEADER_TIMEOUT", defaultReadHeaderTimout),
@@ -59,6 +66,17 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 	if value, ok := os.LookupEnv(key); ok && value != "" {
 		parsed, err := time.ParseDuration(value)
 		if err == nil {
+			return parsed
+		}
+	}
+
+	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	if value, ok := os.LookupEnv(key); ok && value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err == nil && parsed > 0 {
 			return parsed
 		}
 	}

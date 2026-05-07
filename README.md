@@ -10,7 +10,7 @@ O foco do MVP e bem definido:
 - **Redis** para cache e fanout de eventos
 - **Go** no servidor e no SDK Go
 
-Hoje o repositorio ja possui a base do servidor admin, o schema inicial no Postgres, o contrato protobuf do SDK e a publicacao de eventos via Redis. A parte de streaming gRPC e o SDK Go ainda estao em construcao.
+Hoje o repositorio ja possui a base do servidor admin, o schema inicial no Postgres, o contrato protobuf do SDK, a publicacao de eventos via Redis, o servidor gRPC para snapshot/update e o SDK Go com bootstrap por snapshot e stream incremental.
 
 ## Estado atual do MVP
 
@@ -21,14 +21,16 @@ Ja existe:
 - migracao inicial do Postgres
 - revisao monotonicamente crescente por ambiente
 - publicacao de mudancas de flag em Redis Pub/Sub
+- subscriber Redis + fanout interno para clientes gRPC
 - contrato protobuf em `proto/pullsing/v1/sdk.proto`
+- servidor gRPC com `GetSnapshot` e `StreamUpdates`
+- autenticacao do SDK via `env_key` usando a API key do ambiente
+- stream com backlog por revisao e desconexao de cliente lento
+- SDK Go com bootstrap, reconnect e avaliacao local
 - testes unitarios da camada de aplicacao e handlers HTTP
 
 Ainda falta:
 
-- servidor gRPC para `GetSnapshot` e `StreamUpdates`
-- autenticacao do lado SDK via API key
-- implementacao do SDK Go com cache local e reconnect
 - benchmarks medidos em ambiente reproduzivel
 
 ## Quickstart
