@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package pullsing.v1;
+
+option go_package = "github.com/gustavodetoni/pullsing/proto/gen/go/pullsing/v1;pullsingv1";
+
+enum FlagType {
+  FLAG_TYPE_UNSPECIFIED = 0;
+  FLAG_TYPE_BOOL = 1;
+}
+
+enum MutationType {
+  MUTATION_TYPE_UNSPECIFIED = 0;
+  MUTATION_TYPE_UPSERT = 1;
+  MUTATION_TYPE_DELETE = 2;
+}
+
+message Flag {
+  string key = 1;
+  FlagType type = 2;
+  bool enabled = 3;
+  bool bool_value = 4;
+}
+
+message Snapshot {
+  uint64 revision = 1;
+  repeated Flag flags = 2;
+}
+
+message FlagMutation {
+  MutationType type = 1;
+  string key = 2;
+  Flag flag = 3;
+}
+
+message Update {
+  uint64 revision = 1;
+  repeated FlagMutation mutations = 2;
+}
+
+message GetSnapshotRequest {
+  string env_key = 1;
+}
+
+message StreamUpdatesRequest {
+  string env_key = 1;
+  uint64 since_revision = 2;
+}
+
+service SDKService {
+  rpc GetSnapshot(GetSnapshotRequest) returns (Snapshot);
+  rpc StreamUpdates(StreamUpdatesRequest) returns (stream Update);
+}

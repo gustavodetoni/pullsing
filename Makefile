@@ -1,7 +1,10 @@
 GO ?= go
 COMPOSE ?= docker compose
 
-.PHONY: fmt test build run up down logs check
+.PHONY: fmt test build run proto up down logs check
+
+proto:
+	./scripts/proto/generate.sh
 
 fmt:
 	$(GO) fmt ./...
@@ -24,4 +27,4 @@ down:
 logs:
 	$(COMPOSE) logs -f server
 
-check: fmt test build
+check: proto fmt test build
