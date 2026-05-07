@@ -28,7 +28,7 @@ Também já existe a estrutura inicial de diretórios:
 - `sdk/go/types`
 - `sdk/go/examples`
 
-No entanto, ainda não há implementação do SDK nesses diretórios. Neste momento, o artefato mais concreto para o SDK é o contrato protobuf/gRPC definido em `proto/pullsing/v1/sdk.proto`.
+Os diretórios já contêm uma implementação inicial funcional de bootstrap por snapshot, stream incremental, reconnect e avaliação local para flags booleanas.
 
 ## Contrato gRPC atual
 
@@ -44,7 +44,7 @@ As duas chamadas usam `env_key`:
 - `GetSnapshotRequest.env_key`
 - `StreamUpdatesRequest.env_key`
 
-No estado atual do contrato, o SDK seleciona o ambiente por essa chave. Ainda existe uma lacuna a fechar entre o protobuf atual e a modelagem administrativa do servidor: hoje a Admin API gera e rotaciona `api_key` por ambiente, enquanto o contrato gRPC expõe `env_key` no request. A forma final de autenticação e identificação ainda precisa ser consolidada junto da implementação do servidor e do SDK.
+No estado atual do contrato, o SDK envia a API key do ambiente no campo `env_key`. O servidor autentica essa chave comparando o hash com a tabela `api_keys` ativa do ambiente.
 
 ### Modelo de dados de flags
 
@@ -189,15 +189,10 @@ Esse exemplo é apenas ilustrativo. O repositório ainda não define a API final
 
 Itens ausentes hoje:
 
-- implementação do cliente gRPC do SDK;
-- política de retry e backoff;
-- cache local e modelo de concorrência;
-- API pública de avaliação;
-- suporte a shutdown e observabilidade;
-- exemplos executáveis;
-- testes unitários;
-- testes de integração contra o servidor;
-- benchmarks reais do SDK.
+- testes de integração do SDK contra servidor com Postgres + Redis reais;
+- observabilidade mais profunda do loop de stream;
+- benchmarks reais do SDK;
+- expansão para tipos não booleanos e cenários de targeting.
 
 Também faltam decisões de produto e protocolo que impactam o SDK:
 

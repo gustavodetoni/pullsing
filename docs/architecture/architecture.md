@@ -18,6 +18,8 @@ Este documento descreve o estado atual do MVP no código e separa explicitamente
 - Persistência em PostgreSQL via `pgx` em `internal/infrastructure/postgres`.
 - Publicação de eventos de mudança em Redis Pub/Sub em `internal/infrastructure/redis`.
 - Contrato protobuf/gRPC em `proto/pullsing/v1/sdk.proto`.
+- Servidor gRPC em `internal/interfaces/grpc` com `GetSnapshot` e `StreamUpdates`.
+- Subscriber Redis + hub interno para fanout de updates aos clientes conectados.
 - Ambiente local com `docker-compose.yml` para `postgres`, `redis` e `server`.
 
 ## Fluxo atual
@@ -28,6 +30,8 @@ Este documento descreve o estado atual do MVP no código e separa explicitamente
 4. O repositório Postgres persiste projetos, ambientes, API keys e flags.
 5. Na criação de flag, o servidor incrementa `environments.revision` e grava a mesma revisão na flag.
 6. Depois da persistência, o servidor publica um evento JSON no canal Redis `pullsing.environment-updates`.
+7. O relay Redis do servidor consome o evento e o repassa ao hub interno por ambiente.
+8. Clientes gRPC autenticados recebem backlog por revisão e updates em tempo real.
 
 ## Modelo atual de dados
 
@@ -38,14 +42,10 @@ Este documento descreve o estado atual do MVP no código e separa explicitamente
 
 ## Limites do estado atual
 
-- Não há servidor gRPC implementado no binário.
-- Não há leitura de snapshot para SDK no servidor.
-- Não há subscriber Redis no servidor; hoje existe apenas publicação.
-- Não há fanout de atualizações para clientes conectados.
+- A autenticação do SDK usa `env_key` carregando a API key do ambiente no payload gRPC; ainda não há metadata/header dedicado.
 - Não há autenticação/autorização na Admin API.
 - Não há CRUD completo: hoje o código cobre apenas criação de projeto, ambiente, flag e rotação de API key.
-- O módulo `sdk/go` existe como estrutura, mas ainda sem implementação funcional.
-- `proto/gen/go/pullsing/v1` já contém código Go gerado a partir do protobuf atual.
+- O stream incremental reconstrói o estado final desde uma revisão usando a tabela atual de flags; um changelog dedicado ainda não existe.
 
 ## Roadmap já indicado pelo repositório
 
@@ -60,12 +60,13 @@ Este documento descreve o estado atual do MVP no código e separa explicitamente
 - Fonte de verdade: PostgreSQL.
 - Barramento de invalidação/fanout entre instâncias: Redis Pub/Sub.
 - Interface administrativa: HTTP/JSON.
-- Interface para SDKs: gRPC, já definida em contrato, ainda não conectada ao servidor.
+- Interface para SDKs: gRPC, conectada ao servidor com snapshot + stream incremental.
 - Estratégia de consistência para clientes: revisão monotônica por ambiente.
 
 ## Testes existentes
 
 - Testes unitários da aplicação cobrindo publicação de evento Redis ao criar flag.
 - Testes HTTP cobrindo o handler de criação de flag.
+- Testes gRPC cobrindo autenticação, backlog inicial e update em tempo real.
 
-Isso indica que o projeto já valida a fatia “escrita administrativa + persistência + publicação”, mas ainda não a fatia “distribuição para SDK + avaliação local”.
+Isso indica que o projeto já valida as fatias “escrita administrativa + persistência + publicação” e “distribuição para SDK + avaliação local”, embora ainda faltem cenários de integração com infraestrutura real.

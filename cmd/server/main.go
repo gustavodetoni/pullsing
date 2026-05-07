@@ -11,8 +11,10 @@ import (
 
 	"github.com/gustavodetoni/pullsing/internal/application"
 	"github.com/gustavodetoni/pullsing/internal/infrastructure/config"
+	grpcinfra "github.com/gustavodetoni/pullsing/internal/infrastructure/grpc"
 	postgresinfra "github.com/gustavodetoni/pullsing/internal/infrastructure/postgres"
 	redisinfra "github.com/gustavodetoni/pullsing/internal/infrastructure/redis"
+	grpcserver "github.com/gustavodetoni/pullsing/internal/interfaces/grpc"
 	httpserver "github.com/gustavodetoni/pullsing/internal/interfaces/http"
 )
 
@@ -43,11 +45,42 @@ func main() {
 
 	store := postgresinfra.NewStore(pool)
 	publisher := redisinfra.NewPublisher(redisClient, "")
+	subscriber := redisinfra.NewSubscriber(redisClient, "")
 	adminService := application.NewAdminService(store, publisher)
-	server := httpserver.New(cfg, logger, adminService)
+	sdkService := application.NewSDKService(store)
+	hub := grpcinfra.NewHub(cfg.GRPCClientBuffer)
+	relay := grpcinfra.NewRedisRelay(subscriber, hub, logger)
 
-	if err := server.Run(ctx); err != nil && err != http.ErrServerClosed {
-		logger.Fatalf("server stopped with error: %v", err)
+	httpSrv := httpserver.New(cfg, logger, adminService)
+	grpcSrv, err := grpcserver.New(cfg, logger, sdkService, hub, relay)
+	if err != nil {
+		logger.Fatalf("grpc server setup failed: %v", err)
+	}
+
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	errCh := make(chan error, 2)
+	go func() {
+		errCh <- httpSrv.Run(runCtx)
+	}()
+	go func() {
+		errCh <- grpcSrv.Run(runCtx)
+	}()
+
+	var runErr error
+	for i := 0; i < 2; i++ {
+		err := <-errCh
+		if err == nil || err == http.ErrServerClosed || runErr != nil {
+			continue
+		}
+
+		runErr = err
+		cancel()
+	}
+
+	if runErr != nil {
+		logger.Fatalf("server stopped with error: %v", runErr)
 	}
 }
 

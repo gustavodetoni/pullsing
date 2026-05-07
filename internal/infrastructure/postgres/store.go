@@ -39,6 +39,118 @@ func (s *Store) Close() {
 	s.pool.Close()
 }
 
+func (s *Store) GetEnvironmentByAPIKeyHash(ctx context.Context, tokenHash string) (domain.Environment, error) {
+	row := s.pool.QueryRow(ctx, `
+		SELECT e.id, e.project_id, e.key, e.name, e.revision, e.created_at, e.updated_at
+		FROM api_keys ak
+		JOIN environments e ON e.id = ak.environment_id
+		WHERE ak.token_hash = $1
+		  AND ak.revoked_at IS NULL
+	`, tokenHash)
+
+	var environment domain.Environment
+	if err := row.Scan(
+		&environment.ID,
+		&environment.ProjectID,
+		&environment.Key,
+		&environment.Name,
+		&environment.Revision,
+		&environment.CreatedAt,
+		&environment.UpdatedAt,
+	); err != nil {
+		return domain.Environment{}, mapError(err)
+	}
+
+	return environment, nil
+}
+
+func (s *Store) GetSnapshot(ctx context.Context, environmentID int64) (application.EnvironmentSnapshot, error) {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return application.EnvironmentSnapshot{}, fmt.Errorf("begin get snapshot tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	var revision uint64
+	if err := tx.QueryRow(ctx, `
+		SELECT revision
+		FROM environments
+		WHERE id = $1
+	`, environmentID).Scan(&revision); err != nil {
+		return application.EnvironmentSnapshot{}, mapError(err)
+	}
+
+	rows, err := tx.Query(ctx, `
+		SELECT key, enabled, value_boolean, archived_at IS NOT NULL AS archived, revision
+		FROM flags
+		WHERE environment_id = $1
+		  AND archived_at IS NULL
+		  AND revision <= $2
+		ORDER BY key ASC
+	`, environmentID, revision)
+	if err != nil {
+		return application.EnvironmentSnapshot{}, mapError(err)
+	}
+	defer rows.Close()
+
+	flags := make([]application.FlagState, 0)
+	for rows.Next() {
+		var flag application.FlagState
+		if err := rows.Scan(&flag.Key, &flag.Enabled, &flag.BoolValue, &flag.Archived, &flag.Revision); err != nil {
+			return application.EnvironmentSnapshot{}, fmt.Errorf("scan snapshot flag: %w", err)
+		}
+		flags = append(flags, flag)
+	}
+	if err := rows.Err(); err != nil {
+		return application.EnvironmentSnapshot{}, fmt.Errorf("iterate snapshot flags: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return application.EnvironmentSnapshot{}, fmt.Errorf("commit get snapshot tx: %w", err)
+	}
+
+	return application.EnvironmentSnapshot{
+		Revision: revision,
+		Flags:    flags,
+	}, nil
+}
+
+func (s *Store) ListFlagStatesSince(ctx context.Context, environmentID int64, sinceRevision uint64) (application.EnvironmentFlagChanges, error) {
+	var changes application.EnvironmentFlagChanges
+	if err := s.pool.QueryRow(ctx, `
+		SELECT revision
+		FROM environments
+		WHERE id = $1
+	`, environmentID).Scan(&changes.CurrentRevision); err != nil {
+		return application.EnvironmentFlagChanges{}, mapError(err)
+	}
+
+	rows, err := s.pool.Query(ctx, `
+		SELECT key, enabled, value_boolean, archived_at IS NOT NULL AS archived, revision
+		FROM flags
+		WHERE environment_id = $1
+		  AND revision > $2
+		ORDER BY revision ASC, key ASC
+	`, environmentID, sinceRevision)
+	if err != nil {
+		return application.EnvironmentFlagChanges{}, mapError(err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var flag application.FlagState
+		if err := rows.Scan(&flag.Key, &flag.Enabled, &flag.BoolValue, &flag.Archived, &flag.Revision); err != nil {
+			return application.EnvironmentFlagChanges{}, fmt.Errorf("scan flag change: %w", err)
+		}
+		changes.Flags = append(changes.Flags, flag)
+	}
+	if err := rows.Err(); err != nil {
+		return application.EnvironmentFlagChanges{}, fmt.Errorf("iterate flag changes: %w", err)
+	}
+
+	return changes, nil
+}
+
 func (s *Store) CreateProject(ctx context.Context, project domain.Project) (domain.Project, error) {
 	row := s.pool.QueryRow(ctx, `
 		INSERT INTO projects (key, name)
