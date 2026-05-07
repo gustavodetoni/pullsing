@@ -13,15 +13,20 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("not found")
-	ErrConflict = errors.New("conflict")
+	ErrNotFound     = errors.New("not found")
+	ErrConflict     = errors.New("conflict")
+	ErrInvalidInput = errors.New("invalid input")
 )
 
 type AdminRepository interface {
 	CreateProject(ctx context.Context, project domain.Project) (domain.Project, error)
 	CreateEnvironmentWithAPIKey(ctx context.Context, environment domain.Environment, tokenHash string) (domain.Environment, error)
 	RotateAPIKey(ctx context.Context, environmentID int64, tokenHash string) error
+	ListFlags(ctx context.Context, environmentID int64, includeArchived bool) ([]domain.Flag, error)
+	GetFlag(ctx context.Context, environmentID, flagID int64) (domain.Flag, error)
 	CreateFlag(ctx context.Context, flag domain.Flag) (domain.Flag, error)
+	UpdateFlag(ctx context.Context, flag domain.Flag) (domain.Flag, error)
+	ArchiveFlag(ctx context.Context, environmentID, flagID int64) (domain.Flag, error)
 }
 
 type EventPublisher interface {
@@ -62,6 +67,15 @@ type CreateFlagInput struct {
 	Description   string `json:"description"`
 	Enabled       bool   `json:"enabled"`
 	BoolValue     bool   `json:"bool_value"`
+}
+
+type UpdateFlagInput struct {
+	EnvironmentID int64   `json:"environment_id"`
+	FlagID        int64   `json:"flag_id"`
+	Name          *string `json:"name"`
+	Description   *string `json:"description"`
+	Enabled       *bool   `json:"enabled"`
+	BoolValue     *bool   `json:"bool_value"`
 }
 
 func NewAdminService(repo AdminRepository, publisher EventPublisher) *AdminService {
@@ -122,6 +136,97 @@ func (s *AdminService) CreateFlag(ctx context.Context, input CreateFlagInput) (d
 	}
 
 	flag, err = s.repo.CreateFlag(ctx, flag)
+	if err != nil {
+		return domain.Flag{}, err
+	}
+
+	if err := s.publisher.PublishFlagChange(ctx, FlagChangeEvent{
+		EnvironmentID: flag.EnvironmentID,
+		Revision:      flag.Revision,
+		ChangedKeys:   []string{flag.Key},
+	}); err != nil {
+		return domain.Flag{}, err
+	}
+
+	return flag, nil
+}
+
+func (s *AdminService) ListFlags(ctx context.Context, environmentID int64, includeArchived bool) ([]domain.Flag, error) {
+	return s.repo.ListFlags(ctx, environmentID, includeArchived)
+}
+
+func (s *AdminService) GetFlag(ctx context.Context, environmentID, flagID int64) (domain.Flag, error) {
+	return s.repo.GetFlag(ctx, environmentID, flagID)
+}
+
+func (s *AdminService) UpdateFlag(ctx context.Context, input UpdateFlagInput) (domain.Flag, error) {
+	if input.Name == nil && input.Description == nil && input.Enabled == nil && input.BoolValue == nil {
+		return domain.Flag{}, fmt.Errorf("%w: at least one field must be provided", ErrInvalidInput)
+	}
+
+	current, err := s.repo.GetFlag(ctx, input.EnvironmentID, input.FlagID)
+	if err != nil {
+		return domain.Flag{}, err
+	}
+	if current.ArchivedAt != nil {
+		return domain.Flag{}, ErrNotFound
+	}
+
+	name := current.Name
+	if input.Name != nil {
+		name = *input.Name
+	}
+
+	description := current.Description
+	if input.Description != nil {
+		description = *input.Description
+	}
+
+	enabled := current.Enabled
+	if input.Enabled != nil {
+		enabled = *input.Enabled
+	}
+
+	boolValue := current.BoolValue
+	if input.BoolValue != nil {
+		boolValue = *input.BoolValue
+	}
+
+	updated, err := domain.NewBoolFlag(current.EnvironmentID, current.Key, name, description, enabled, boolValue)
+	if err != nil {
+		return domain.Flag{}, err
+	}
+
+	updated.ID = current.ID
+	updated.Type = current.Type
+	updated.CreatedAt = current.CreatedAt
+
+	updated, err = s.repo.UpdateFlag(ctx, updated)
+	if err != nil {
+		return domain.Flag{}, err
+	}
+
+	if err := s.publisher.PublishFlagChange(ctx, FlagChangeEvent{
+		EnvironmentID: updated.EnvironmentID,
+		Revision:      updated.Revision,
+		ChangedKeys:   []string{updated.Key},
+	}); err != nil {
+		return domain.Flag{}, err
+	}
+
+	return updated, nil
+}
+
+func (s *AdminService) ArchiveFlag(ctx context.Context, environmentID, flagID int64) (domain.Flag, error) {
+	current, err := s.repo.GetFlag(ctx, environmentID, flagID)
+	if err != nil {
+		return domain.Flag{}, err
+	}
+	if current.ArchivedAt != nil {
+		return domain.Flag{}, ErrNotFound
+	}
+
+	flag, err := s.repo.ArchiveFlag(ctx, environmentID, flagID)
 	if err != nil {
 		return domain.Flag{}, err
 	}

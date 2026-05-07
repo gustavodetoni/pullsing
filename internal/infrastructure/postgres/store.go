@@ -245,32 +245,184 @@ func (s *Store) RotateAPIKey(ctx context.Context, environmentID int64, tokenHash
 	return nil
 }
 
-func (s *Store) CreateFlag(ctx context.Context, flag domain.Flag) (domain.Flag, error) {
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+func (s *Store) ListFlags(ctx context.Context, environmentID int64, includeArchived bool) ([]domain.Flag, error) {
+	if err := s.ensureEnvironmentExists(ctx, environmentID); err != nil {
+		return nil, err
+	}
+
+	query := `
+		SELECT id, environment_id, key, name, description, enabled, value_boolean, revision, created_at, updated_at, archived_at
+		FROM flags
+		WHERE environment_id = $1
+	`
+	if !includeArchived {
+		query += " AND archived_at IS NULL"
+	}
+	query += " ORDER BY key ASC"
+
+	rows, err := s.pool.Query(ctx, query, environmentID)
 	if err != nil {
-		return domain.Flag{}, fmt.Errorf("begin create flag tx: %w", err)
+		return nil, mapError(err)
 	}
-	defer tx.Rollback(ctx)
+	defer rows.Close()
 
-	if err := tx.QueryRow(ctx, `
-		UPDATE environments
-		SET revision = revision + 1,
-		    updated_at = NOW()
-		WHERE id = $1
-		RETURNING revision
-	`, flag.EnvironmentID).Scan(&flag.Revision); err != nil {
-		return domain.Flag{}, mapError(err)
+	flags := make([]domain.Flag, 0)
+	for rows.Next() {
+		flag, err := scanFlag(rows)
+		if err != nil {
+			return nil, err
+		}
+		flags = append(flags, flag)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate flags: %w", err)
 	}
 
-	row := tx.QueryRow(ctx, `
+	return flags, nil
+}
+
+func (s *Store) GetFlag(ctx context.Context, environmentID, flagID int64) (domain.Flag, error) {
+	row := s.pool.QueryRow(ctx, `
+		SELECT id, environment_id, key, name, description, enabled, value_boolean, revision, created_at, updated_at, archived_at
+		FROM flags
+		WHERE environment_id = $1 AND id = $2
+	`, environmentID, flagID)
+
+	flag, err := scanFlag(row)
+	if err != nil {
+		return domain.Flag{}, err
+	}
+
+	return flag, nil
+}
+
+func (s *Store) CreateFlag(ctx context.Context, flag domain.Flag) (domain.Flag, error) {
+	row := s.pool.QueryRow(ctx, `
+		WITH next_revision AS (
+			UPDATE environments
+			SET revision = revision + 1,
+			    updated_at = NOW()
+			WHERE id = $1
+			RETURNING revision
+		)
 		INSERT INTO flags (
 			environment_id, key, name, description, enabled, value_boolean, revision
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		SELECT $1, $2, $3, $4, $5, $6, next_revision.revision
+		FROM next_revision
 		RETURNING id, environment_id, key, name, description, enabled, value_boolean, revision, created_at, updated_at, archived_at
-	`, flag.EnvironmentID, flag.Key, flag.Name, flag.Description, flag.Enabled, flag.BoolValue, flag.Revision)
+	`, flag.EnvironmentID, flag.Key, flag.Name, flag.Description, flag.Enabled, flag.BoolValue)
 
-	if err := row.Scan(
+	created, err := scanFlag(row)
+	if err != nil {
+		return domain.Flag{}, err
+	}
+
+	return created, nil
+}
+
+func (s *Store) UpdateFlag(ctx context.Context, flag domain.Flag) (domain.Flag, error) {
+	row := s.pool.QueryRow(ctx, `
+		WITH target AS (
+			SELECT id
+			FROM flags
+			WHERE environment_id = $1
+			  AND id = $2
+			  AND archived_at IS NULL
+		),
+		next_revision AS (
+			UPDATE environments
+			SET revision = revision + 1,
+			    updated_at = NOW()
+			WHERE id = $1
+			  AND EXISTS (SELECT 1 FROM target)
+			RETURNING revision
+		)
+		UPDATE flags
+		SET name = $3,
+		    description = $4,
+		    enabled = $5,
+		    value_boolean = $6,
+		    revision = next_revision.revision,
+		    updated_at = NOW()
+		FROM next_revision
+		WHERE flags.environment_id = $1
+		  AND flags.id = $2
+		  AND flags.archived_at IS NULL
+		RETURNING flags.id, flags.environment_id, flags.key, flags.name, flags.description, flags.enabled, flags.value_boolean, flags.revision, flags.created_at, flags.updated_at, flags.archived_at
+	`, flag.EnvironmentID, flag.ID, flag.Name, flag.Description, flag.Enabled, flag.BoolValue)
+
+	updated, err := scanFlag(row)
+	if err != nil {
+		return domain.Flag{}, err
+	}
+
+	return updated, nil
+}
+
+func (s *Store) ArchiveFlag(ctx context.Context, environmentID, flagID int64) (domain.Flag, error) {
+	row := s.pool.QueryRow(ctx, `
+		WITH target AS (
+			SELECT id
+			FROM flags
+			WHERE environment_id = $1
+			  AND id = $2
+			  AND archived_at IS NULL
+		),
+		next_revision AS (
+			UPDATE environments
+			SET revision = revision + 1,
+			    updated_at = NOW()
+			WHERE id = $1
+			  AND EXISTS (SELECT 1 FROM target)
+			RETURNING revision
+		)
+		UPDATE flags
+		SET archived_at = NOW(),
+		    revision = next_revision.revision,
+		    updated_at = NOW()
+		FROM next_revision
+		WHERE flags.environment_id = $1
+		  AND flags.id = $2
+		  AND flags.archived_at IS NULL
+		RETURNING flags.id, flags.environment_id, flags.key, flags.name, flags.description, flags.enabled, flags.value_boolean, flags.revision, flags.created_at, flags.updated_at, flags.archived_at
+	`, environmentID, flagID)
+
+	archived, err := scanFlag(row)
+	if err != nil {
+		return domain.Flag{}, err
+	}
+
+	return archived, nil
+}
+
+func (s *Store) ensureEnvironmentExists(ctx context.Context, environmentID int64) error {
+	var exists bool
+	if err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM environments
+			WHERE id = $1
+		)
+	`, environmentID).Scan(&exists); err != nil {
+		return mapError(err)
+	}
+	if !exists {
+		return application.ErrNotFound
+	}
+
+	return nil
+}
+
+type flagScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanFlag(scanner flagScanner) (domain.Flag, error) {
+	var flag domain.Flag
+	flag.Type = domain.FlagTypeBool
+
+	if err := scanner.Scan(
 		&flag.ID,
 		&flag.EnvironmentID,
 		&flag.Key,
@@ -284,10 +436,6 @@ func (s *Store) CreateFlag(ctx context.Context, flag domain.Flag) (domain.Flag, 
 		&flag.ArchivedAt,
 	); err != nil {
 		return domain.Flag{}, mapError(err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return domain.Flag{}, fmt.Errorf("commit create flag tx: %w", err)
 	}
 
 	return flag, nil

@@ -32,7 +32,11 @@ type adminService interface {
 	CreateProject(ctx context.Context, input application.CreateProjectInput) (domain.Project, error)
 	CreateEnvironment(ctx context.Context, input application.CreateEnvironmentInput) (application.EnvironmentWithAPIKey, error)
 	RotateAPIKey(ctx context.Context, environmentID int64) (string, error)
+	ListFlags(ctx context.Context, environmentID int64, includeArchived bool) ([]domain.Flag, error)
+	GetFlag(ctx context.Context, environmentID, flagID int64) (domain.Flag, error)
 	CreateFlag(ctx context.Context, input application.CreateFlagInput) (domain.Flag, error)
+	UpdateFlag(ctx context.Context, input application.UpdateFlagInput) (domain.Flag, error)
+	ArchiveFlag(ctx context.Context, environmentID, flagID int64) (domain.Flag, error)
 }
 
 type createProjectRequest struct {
@@ -51,6 +55,13 @@ type createFlagRequest struct {
 	Description string `json:"description"`
 	Enabled     bool   `json:"enabled"`
 	BoolValue   bool   `json:"bool_value"`
+}
+
+type updateFlagRequest struct {
+	Name        *string `json:"name"`
+	Description *string `json:"description"`
+	Enabled     *bool   `json:"enabled"`
+	BoolValue   *bool   `json:"bool_value"`
 }
 
 type rotateAPIKeyResponse struct {
@@ -187,31 +198,9 @@ func environmentSubresourceHandler(admin adminService) http.HandlerFunc {
 
 		switch {
 		case suffix == "/flags":
-			if r.Method != http.MethodPost {
-				writeMethodNotAllowed(w, http.MethodPost)
-				return
-			}
-
-			var request createFlagRequest
-			if err := decodeJSON(r, &request); err != nil {
-				writeError(w, http.StatusBadRequest, err)
-				return
-			}
-
-			flag, err := admin.CreateFlag(r.Context(), application.CreateFlagInput{
-				EnvironmentID: environmentID,
-				Key:           request.Key,
-				Name:          request.Name,
-				Description:   request.Description,
-				Enabled:       request.Enabled,
-				BoolValue:     request.BoolValue,
-			})
-			if err != nil {
-				writeApplicationError(w, err)
-				return
-			}
-
-			writeJSON(w, http.StatusCreated, flag)
+			handleFlagsCollection(w, r, admin, environmentID)
+		case strings.HasPrefix(suffix, "/flags/"):
+			handleFlagResource(w, r, admin, environmentID, suffix)
 		case suffix == "/api-keys:rotate":
 			if r.Method != http.MethodPost {
 				writeMethodNotAllowed(w, http.MethodPost)
@@ -228,6 +217,97 @@ func environmentSubresourceHandler(admin adminService) http.HandlerFunc {
 		default:
 			http.NotFound(w, r)
 		}
+	}
+}
+
+func handleFlagsCollection(w http.ResponseWriter, r *http.Request, admin adminService, environmentID int64) {
+	switch r.Method {
+	case http.MethodGet:
+		includeArchived, err := parseOptionalBool(r, "include_archived")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		flags, err := admin.ListFlags(r.Context(), environmentID, includeArchived)
+		if err != nil {
+			writeApplicationError(w, err)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, flags)
+	case http.MethodPost:
+		var request createFlagRequest
+		if err := decodeJSON(r, &request); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		flag, err := admin.CreateFlag(r.Context(), application.CreateFlagInput{
+			EnvironmentID: environmentID,
+			Key:           request.Key,
+			Name:          request.Name,
+			Description:   request.Description,
+			Enabled:       request.Enabled,
+			BoolValue:     request.BoolValue,
+		})
+		if err != nil {
+			writeApplicationError(w, err)
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, flag)
+	default:
+		writeMethodNotAllowed(w, http.MethodGet, http.MethodPost)
+	}
+}
+
+func handleFlagResource(w http.ResponseWriter, r *http.Request, admin adminService, environmentID int64, suffix string) {
+	flagID, ok := parseChildResourceID(suffix, "/flags/")
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		flag, err := admin.GetFlag(r.Context(), environmentID, flagID)
+		if err != nil {
+			writeApplicationError(w, err)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, flag)
+	case http.MethodPatch:
+		var request updateFlagRequest
+		if err := decodeJSON(r, &request); err != nil {
+			writeError(w, http.StatusBadRequest, err)
+			return
+		}
+
+		flag, err := admin.UpdateFlag(r.Context(), application.UpdateFlagInput{
+			EnvironmentID: environmentID,
+			FlagID:        flagID,
+			Name:          request.Name,
+			Description:   request.Description,
+			Enabled:       request.Enabled,
+			BoolValue:     request.BoolValue,
+		})
+		if err != nil {
+			writeApplicationError(w, err)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, flag)
+	case http.MethodDelete:
+		if _, err := admin.ArchiveFlag(r.Context(), environmentID, flagID); err != nil {
+			writeApplicationError(w, err)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	default:
+		writeMethodNotAllowed(w, http.MethodDelete, http.MethodGet, http.MethodPatch)
 	}
 }
 
@@ -250,6 +330,24 @@ func parseResourcePath(path, prefix string) (int64, string, bool) {
 	return id, "/" + parts[1], true
 }
 
+func parseChildResourceID(path, prefix string) (int64, bool) {
+	if !strings.HasPrefix(path, prefix) {
+		return 0, false
+	}
+
+	trimmed := strings.TrimPrefix(path, prefix)
+	if trimmed == "" || strings.Contains(trimmed, "/") {
+		return 0, false
+	}
+
+	id, err := strconv.ParseInt(trimmed, 10, 64)
+	if err != nil || id <= 0 {
+		return 0, false
+	}
+
+	return id, true
+}
+
 func decodeJSON(r *http.Request, target any) error {
 	defer r.Body.Close()
 
@@ -263,6 +361,20 @@ func decodeJSON(r *http.Request, target any) error {
 	return nil
 }
 
+func parseOptionalBool(r *http.Request, key string) (bool, error) {
+	raw := r.URL.Query().Get(key)
+	if raw == "" {
+		return false, nil
+	}
+
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, errors.New("invalid boolean query parameter")
+	}
+
+	return value, nil
+}
+
 func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -273,8 +385,8 @@ func writeError(w http.ResponseWriter, status int, err error) {
 	writeJSON(w, status, map[string]string{"error": err.Error()})
 }
 
-func writeMethodNotAllowed(w http.ResponseWriter, method string) {
-	w.Header().Set("Allow", method)
+func writeMethodNotAllowed(w http.ResponseWriter, methods ...string) {
+	w.Header().Set("Allow", strings.Join(methods, ", "))
 	writeError(w, http.StatusMethodNotAllowed, errors.New("method not allowed"))
 }
 
@@ -284,6 +396,8 @@ func writeApplicationError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, err)
 	case errors.Is(err, application.ErrConflict):
 		writeError(w, http.StatusConflict, err)
+	case errors.Is(err, application.ErrInvalidInput):
+		writeError(w, http.StatusBadRequest, err)
 	case errors.Is(err, domain.ErrInvalidKey),
 		errors.Is(err, domain.ErrInvalidName),
 		errors.Is(err, domain.ErrUnsupportedFlagType):
