@@ -51,7 +51,10 @@ PULLSING_REDIS_ADDR='localhost:6379' \
 go run ./cmd/server
 ```
 
-Isso aplica as migracoes em `migrations/` no startup e expoe a API em `:8080`.
+Isso aplica as migracoes em `migrations/` no startup e expoe:
+
+- API admin HTTP em `:8080`
+- API gRPC do SDK em `:50051`
 
 ## Fluxo basico da API admin
 
@@ -134,7 +137,7 @@ Cada criacao de flag incrementa `revision` do ambiente e publica um evento em Re
 
 ### 4. Executar o exemplo do SDK Go
 
-Use exatamente a `api_key` retornada no passo 2 e uma flag que exista com a mesma `key` consultada pelo exemplo. Por padrao, o exemplo le `checkout-redesign`, entao o passo 3 ja cria a flag correta.
+Use exatamente a `api_key` retornada no passo 2 e uma flag que exista com a mesma `key` consultada pelo exemplo. Por padrao, o exemplo le `checkout-redesign`, entao o passo 3 ja cria a flag correta. O cliente faz bootstrap via `GetSnapshot`, inicia `StreamUpdates` em background e avalia a flag localmente.
 
 ```bash
 PULLSING_API_KEY='psk_...' \
@@ -142,7 +145,7 @@ PULLSING_FLAG_KEY='checkout-redesign' \
 go run ./sdk/go/examples/simple
 ```
 
-Se o servidor estiver ouvindo gRPC em outro endereco, ajuste `PULLSING_ADDR`. O default do exemplo e `localhost:50051`.
+Se o servidor estiver ouvindo gRPC em outro endereco, ajuste `PULLSING_ADDR`. O default do exemplo e `localhost:50051`, que corresponde ao bind padrao de `PULLSING_GRPC_ADDR=:50051` no servidor.
 
 Saida esperada:
 
@@ -161,6 +164,8 @@ curl -X POST http://localhost:8080/v1/environments/1/api-keys:rotate
 - `PULLSING_APP_NAME`: nome do servico. Default `pullsing-server`
 - `PULLSING_ENV`: ambiente. Default `development`
 - `PULLSING_HTTP_ADDR`: bind HTTP. Default `:8080`
+- `PULLSING_GRPC_ADDR`: bind gRPC. Default `:50051`
+- `PULLSING_GRPC_CLIENT_BUFFER`: buffer por cliente no fanout gRPC. Default `16`
 - `PULLSING_POSTGRES_URL`: URL do Postgres
 - `PULLSING_REDIS_ADDR`: endereco do Redis
 - `PULLSING_SHUTDOWN_TIMEOUT`: timeout de shutdown
