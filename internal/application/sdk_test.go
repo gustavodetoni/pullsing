@@ -12,7 +12,7 @@ import (
 func TestSDKServiceGetSnapshotAuthenticatesAndReturnsFlags(t *testing.T) {
 	t.Parallel()
 
-	const envKey = "psk_example"
+	const envAPIKey = "psk_example"
 
 	var receivedHash string
 	repo := &fakeSDKRepository{
@@ -36,12 +36,12 @@ func TestSDKServiceGetSnapshotAuthenticatesAndReturnsFlags(t *testing.T) {
 
 	service := NewSDKService(repo)
 
-	snapshot, err := service.GetSnapshot(context.Background(), envKey)
+	snapshot, err := service.GetSnapshot(context.Background(), envAPIKey)
 	if err != nil {
 		t.Fatalf("GetSnapshot() error = %v", err)
 	}
 
-	expectedSum := sha256.Sum256([]byte(envKey))
+	expectedSum := sha256.Sum256([]byte(envAPIKey))
 	expectedHash := hex.EncodeToString(expectedSum[:])
 	if receivedHash != expectedHash {
 		t.Fatalf("AuthenticateEnvironment() hash = %q, want %q", receivedHash, expectedHash)

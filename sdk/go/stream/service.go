@@ -9,8 +9,8 @@ import (
 )
 
 type Service interface {
-	GetSnapshot(ctx context.Context, envKey string) (*pullsingv1.Snapshot, error)
-	StreamUpdates(ctx context.Context, envKey string, sinceRevision uint64) (UpdateStream, error)
+	GetSnapshot(ctx context.Context, envAPIKey string) (*pullsingv1.Snapshot, error)
+	StreamUpdates(ctx context.Context, envAPIKey string, sinceRevision uint64) (UpdateStream, error)
 }
 
 type UpdateStream interface {
@@ -28,13 +28,13 @@ func NewGRPCService(conn grpc.ClientConnInterface) *GRPCService {
 	}
 }
 
-func (s *GRPCService) GetSnapshot(ctx context.Context, envKey string) (*pullsingv1.Snapshot, error) {
-	return s.client.GetSnapshot(ctx, &pullsingv1.GetSnapshotRequest{EnvKey: envKey})
+func (s *GRPCService) GetSnapshot(ctx context.Context, envAPIKey string) (*pullsingv1.Snapshot, error) {
+	return s.client.GetSnapshot(ctx, &pullsingv1.GetSnapshotRequest{EnvApiKey: envAPIKey})
 }
 
-func (s *GRPCService) StreamUpdates(ctx context.Context, envKey string, sinceRevision uint64) (UpdateStream, error) {
+func (s *GRPCService) StreamUpdates(ctx context.Context, envAPIKey string, sinceRevision uint64) (UpdateStream, error) {
 	stream, err := s.client.StreamUpdates(ctx, &pullsingv1.StreamUpdatesRequest{
-		EnvKey:        envKey,
+		EnvApiKey:     envAPIKey,
 		SinceRevision: sinceRevision,
 	})
 	if err != nil {

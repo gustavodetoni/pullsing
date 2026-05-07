@@ -109,7 +109,7 @@ Resposta esperada:
 }
 ```
 
-Guarde a `api_key`. Ela e a credencial real que o SDK envia no campo `env_key`.
+Guarde a `api_key`. Ela e a credencial real que o SDK envia no campo `env_api_key`.
 
 ### 3. Criar flag booleana
 

@@ -13,7 +13,7 @@ import (
 )
 
 type Config struct {
-	EnvKey      string
+	EnvAPIKey   string
 	Addr        string
 	DialOptions []grpc.DialOption
 	Backoff     stream.BackoffConfig
@@ -40,8 +40,8 @@ type Client struct {
 }
 
 func NewClient(ctx context.Context, cfg Config) (*Client, error) {
-	if cfg.EnvKey == "" {
-		return nil, errors.New("pullsing sdk: env key is required")
+	if cfg.EnvAPIKey == "" {
+		return nil, errors.New("pullsing sdk: env api key is required")
 	}
 	if cfg.Addr == "" {
 		return nil, errors.New("pullsing sdk: addr is required")
@@ -67,9 +67,9 @@ func NewClientWithService(service stream.Service, cfg Config, conn *grpc.ClientC
 	}
 
 	runner := stream.NewRunner(service, client.store, client, stream.RunnerConfig{
-		EnvKey:  cfg.EnvKey,
-		Backoff: cfg.Backoff,
-		Logger:  cfg.Logger,
+		EnvAPIKey: cfg.EnvAPIKey,
+		Backoff:   cfg.Backoff,
+		Logger:    cfg.Logger,
 	})
 	client.runner = runner
 

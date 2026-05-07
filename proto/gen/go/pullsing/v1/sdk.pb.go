@@ -350,7 +350,7 @@ func (x *Update) GetMutations() []*FlagMutation {
 
 type GetSnapshotRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	EnvKey        string                 `protobuf:"bytes,1,opt,name=env_key,json=envKey,proto3" json:"env_key,omitempty"`
+	EnvApiKey     string                 `protobuf:"bytes,1,opt,name=env_api_key,json=envApiKey,proto3" json:"env_api_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -385,16 +385,16 @@ func (*GetSnapshotRequest) Descriptor() ([]byte, []int) {
 	return file_pullsing_v1_sdk_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *GetSnapshotRequest) GetEnvKey() string {
+func (x *GetSnapshotRequest) GetEnvApiKey() string {
 	if x != nil {
-		return x.EnvKey
+		return x.EnvApiKey
 	}
 	return ""
 }
 
 type StreamUpdatesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	EnvKey        string                 `protobuf:"bytes,1,opt,name=env_key,json=envKey,proto3" json:"env_key,omitempty"`
+	EnvApiKey     string                 `protobuf:"bytes,1,opt,name=env_api_key,json=envApiKey,proto3" json:"env_api_key,omitempty"`
 	SinceRevision uint64                 `protobuf:"varint,2,opt,name=since_revision,json=sinceRevision,proto3" json:"since_revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -430,9 +430,9 @@ func (*StreamUpdatesRequest) Descriptor() ([]byte, []int) {
 	return file_pullsing_v1_sdk_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *StreamUpdatesRequest) GetEnvKey() string {
+func (x *StreamUpdatesRequest) GetEnvApiKey() string {
 	if x != nil {
-		return x.EnvKey
+		return x.EnvApiKey
 	}
 	return ""
 }
@@ -464,11 +464,11 @@ const file_pullsing_v1_sdk_proto_rawDesc = "" +
 	"\x04flag\x18\x03 \x01(\v2\x11.pullsing.v1.FlagR\x04flag\"]\n" +
 	"\x06Update\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x04R\brevision\x127\n" +
-	"\tmutations\x18\x02 \x03(\v2\x19.pullsing.v1.FlagMutationR\tmutations\"-\n" +
-	"\x12GetSnapshotRequest\x12\x17\n" +
-	"\aenv_key\x18\x01 \x01(\tR\x06envKey\"V\n" +
-	"\x14StreamUpdatesRequest\x12\x17\n" +
-	"\aenv_key\x18\x01 \x01(\tR\x06envKey\x12%\n" +
+	"\tmutations\x18\x02 \x03(\v2\x19.pullsing.v1.FlagMutationR\tmutations\"4\n" +
+	"\x12GetSnapshotRequest\x12\x1e\n" +
+	"\venv_api_key\x18\x01 \x01(\tR\tenvApiKey\"]\n" +
+	"\x14StreamUpdatesRequest\x12\x1e\n" +
+	"\venv_api_key\x18\x01 \x01(\tR\tenvApiKey\x12%\n" +
 	"\x0esince_revision\x18\x02 \x01(\x04R\rsinceRevision*9\n" +
 	"\bFlagType\x12\x19\n" +
 	"\x15FLAG_TYPE_UNSPECIFIED\x10\x00\x12\x12\n" +

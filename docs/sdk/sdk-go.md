@@ -46,12 +46,12 @@ O servico exposto para o SDK e `SDKService` com dois metodos:
 
 ### Identificacao do ambiente
 
-As duas chamadas usam `env_key`:
+As duas chamadas usam `env_api_key`:
 
-- `GetSnapshotRequest.env_key`
-- `StreamUpdatesRequest.env_key`
+- `GetSnapshotRequest.env_api_key`
+- `StreamUpdatesRequest.env_api_key`
 
-No estado atual do contrato, o SDK envia a API key do ambiente no campo `env_key`. O servidor autentica essa chave comparando o hash com a tabela `api_keys` ativa do ambiente.
+No estado atual do contrato, o SDK envia a API key do ambiente no campo `env_api_key`. O servidor autentica essa chave comparando o hash com a tabela `api_keys` ativa do ambiente.
 
 ### Modelo de dados de flags
 
@@ -122,7 +122,7 @@ O ponto de entrada atual e `sdk/go/client`.
 
 ```go
 type Config struct {
-    EnvKey      string
+    EnvAPIKey   string
     Addr        string
     DialOptions []grpc.DialOption
     Backoff     stream.BackoffConfig
@@ -132,15 +132,15 @@ type Config struct {
 
 Campos obrigatorios:
 
-- `EnvKey`: API key do ambiente criada pela API admin;
+- `EnvAPIKey`: API key do ambiente criada pela API admin;
 - `Addr`: endereco do servidor gRPC, por exemplo `localhost:50051`.
 
 ### Cliente
 
 ```go
 sdk, err := client.NewClient(ctx, client.Config{
-    EnvKey: envKey,
-    Addr:   "localhost:50051",
+    EnvAPIKey: envAPIKey,
+    Addr:      "localhost:50051",
 })
 if err != nil {
     return err
@@ -206,8 +206,8 @@ Exemplo minimo de uso:
 
 ```go
 sdk, err := client.NewClient(ctx, client.Config{
-    EnvKey: "psk_...",
-    Addr:   "localhost:50051",
+    EnvAPIKey: "psk_...",
+    Addr:      "localhost:50051",
 })
 if err != nil {
     return err
@@ -237,7 +237,7 @@ Tambem faltam decisoes de produto e protocolo que impactam o SDK:
 - semantica exata para flag inexistente na API publica;
 - comportamento quando `enabled=false` e `bool_value=true`;
 - estrategia explicita para revisao invalida ou atrasada;
-- autenticacao/transporte alem do `env_key`;
+- autenticacao/transporte alem do `env_api_key`;
 - extensao futura para tipos nao booleanos.
 
 ## Criterios de evolucao

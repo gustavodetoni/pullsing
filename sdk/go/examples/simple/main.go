@@ -38,8 +38,8 @@ func main() {
 }
 
 func loadConfig() (client.Config, string, error) {
-	envKey := firstNonEmpty(os.Getenv("PULLSING_API_KEY"), os.Getenv("PULLSING_ENV_KEY"))
-	if envKey == "" {
+	envAPIKey := firstNonEmpty(os.Getenv("PULLSING_API_KEY"), os.Getenv("PULLSING_ENV_API_KEY"))
+	if envAPIKey == "" {
 		return client.Config{}, "", errors.New(
 			"set PULLSING_API_KEY to the api_key returned by POST /v1/projects/{id}/environments",
 		)
@@ -56,8 +56,8 @@ func loadConfig() (client.Config, string, error) {
 	}
 
 	return client.Config{
-		Addr:   addr,
-		EnvKey: envKey,
+		Addr:      addr,
+		EnvAPIKey: envAPIKey,
 	}, flagKey, nil
 }
 

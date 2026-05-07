@@ -24,7 +24,7 @@ Ja existe:
 - subscriber Redis + fanout interno para clientes gRPC
 - contrato protobuf em `proto/pullsing/v1/sdk.proto`
 - servidor gRPC com `GetSnapshot` e `StreamUpdates`
-- autenticacao do SDK via `env_key` usando a API key do ambiente
+- autenticacao do SDK via `env_api_key` usando a API key do ambiente
 - stream com backlog por revisao e desconexao de cliente lento
 - SDK Go com bootstrap, reconnect e avaliacao local
 - testes unitarios da camada de aplicacao e handlers HTTP

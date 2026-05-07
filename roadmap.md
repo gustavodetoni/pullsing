@@ -10,8 +10,8 @@ This roadmap is intentionally **small and iterative**. Each phase should produce
   - `sdk/go/go.mod` for the SDK (versioned independently).
   - Root `go.work` to develop both modules together.
 - Define **Protobuf** for SDK API:
-  - `GetSnapshot(env_key)` (unary) or initial message on stream
-  - `StreamUpdates(env_key, since_revision)` (server-streaming)
+  - `GetSnapshot(env_api_key)` (unary) or initial message on stream
+  - `StreamUpdates(env_api_key, since_revision)` (server-streaming)
   - Messages: `Flag`, `Snapshot{revision, flags}`, `Update{revision, mutations}`
 - Define initial data model for Postgres (migrations):
   - `projects`, `environments`, `api_keys`, `flags`, `flag_versions` (optional), `audit_log` (optional)
@@ -48,7 +48,7 @@ This roadmap is intentionally **small and iterative**. Each phase should produce
   - Reconnect with exponential backoff + jitter.
   - Fallback: keep last valid snapshot; expose health/last revision.
 - Provide simple API:
-  - `NewClient(ctx, Config{EnvKey, Addr, DialOptions...})`
+  - `NewClient(ctx, Config{EnvAPIKey, Addr, DialOptions...})`
   - `Enabled(key string) bool` (and later `GetBool(key, default)`).
 
 Notes:

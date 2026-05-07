@@ -20,7 +20,7 @@ func TestClientEnabledUsesLatestSnapshot(t *testing.T) {
 	}
 
 	client := NewClientWithService(service, Config{
-		EnvKey: "env-key",
+		EnvAPIKey: "env-api-key",
 		Backoff: stream.BackoffConfig{
 			Min: time.Millisecond,
 			Max: time.Millisecond,
