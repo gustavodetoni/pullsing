@@ -42,7 +42,7 @@ Este documento descreve o estado atual do MVP no código e separa explicitamente
 
 ## Limites do estado atual
 
-- A autenticação do SDK usa `env_key` carregando a API key do ambiente no payload gRPC; ainda não há metadata/header dedicado.
+- A autenticação do SDK usa `env_api_key` carregando a API key do ambiente no payload gRPC; ainda não há metadata/header dedicado.
 - Não há autenticação/autorização na Admin API.
 - Não há CRUD completo: hoje o código cobre apenas criação de projeto, ambiente, flag e rotação de API key.
 - O stream incremental reconstrói o estado final desde uma revisão usando a tabela atual de flags; um changelog dedicado ainda não existe.

@@ -39,12 +39,12 @@ O serviço exposto para o SDK é `SDKService` com dois métodos:
 
 ### Identificação do ambiente
 
-As duas chamadas usam `env_key`:
+As duas chamadas usam `env_api_key`:
 
-- `GetSnapshotRequest.env_key`
-- `StreamUpdatesRequest.env_key`
+- `GetSnapshotRequest.env_api_key`
+- `StreamUpdatesRequest.env_api_key`
 
-No estado atual do contrato, o SDK envia a API key do ambiente no campo `env_key`. O servidor autentica essa chave comparando o hash com a tabela `api_keys` ativa do ambiente.
+No estado atual do contrato, o SDK envia a API key do ambiente no campo `env_api_key`. O servidor autentica essa chave comparando o hash com a tabela `api_keys` ativa do ambiente.
 
 ### Modelo de dados de flags
 
@@ -176,7 +176,7 @@ Um formato plausível de uso, ainda não implementado, seria:
 
 ```go
 client, err := sdk.NewClient(ctx, sdk.Config{
-    EnvKey: "env_123",
+    EnvAPIKey: "psk_123",
     Endpoint: "dns:///pullsing:50051",
 })
 
@@ -199,7 +199,7 @@ Também faltam decisões de produto e protocolo que impactam o SDK:
 - semântica exata para flag inexistente;
 - comportamento quando `enabled=false` e `bool_value=true`;
 - estratégia para revisão inválida ou atrasada;
-- autenticação/transporte além do `env_key`;
+- autenticação/transporte além do `env_api_key`;
 - extensão futura para tipos não booleanos.
 
 ## Critérios de aceitação sugeridos

@@ -42,7 +42,7 @@ func TestRunnerLoadsSnapshotAndAppliesUpdates(t *testing.T) {
 
 	store := cache.NewStore()
 	observer := &fakeObserver{}
-	runner := NewRunner(service, store, observer, RunnerConfig{EnvKey: "env-key"})
+	runner := NewRunner(service, store, observer, RunnerConfig{EnvAPIKey: "env-api-key"})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -91,7 +91,7 @@ func TestRunnerReconnectsAndKeepsLastSnapshot(t *testing.T) {
 
 	store := cache.NewStore()
 	runner := NewRunner(service, store, nil, RunnerConfig{
-		EnvKey: "env-key",
+		EnvAPIKey: "env-api-key",
 		Backoff: BackoffConfig{
 			Min:    time.Millisecond,
 			Max:    time.Millisecond,

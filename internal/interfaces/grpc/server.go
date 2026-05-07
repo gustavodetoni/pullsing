@@ -18,8 +18,8 @@ import (
 )
 
 type sdkService interface {
-	AuthenticateEnvironment(ctx context.Context, envKey string) (domain.Environment, error)
-	GetSnapshot(ctx context.Context, envKey string) (application.Snapshot, error)
+	AuthenticateEnvironment(ctx context.Context, envAPIKey string) (domain.Environment, error)
+	GetSnapshot(ctx context.Context, envAPIKey string) (application.Snapshot, error)
 	ListUpdatesSince(ctx context.Context, environmentID int64, sinceRevision uint64) ([]application.Update, error)
 }
 
@@ -112,7 +112,7 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 func (s *SDKServer) GetSnapshot(ctx context.Context, request *pullsingv1.GetSnapshotRequest) (*pullsingv1.Snapshot, error) {
-	snapshot, err := s.service.GetSnapshot(ctx, request.GetEnvKey())
+	snapshot, err := s.service.GetSnapshot(ctx, request.GetEnvApiKey())
 	if err != nil {
 		return nil, mapGRPCError(err)
 	}
@@ -124,7 +124,7 @@ func (s *SDKServer) GetSnapshot(ctx context.Context, request *pullsingv1.GetSnap
 }
 
 func (s *SDKServer) StreamUpdates(request *pullsingv1.StreamUpdatesRequest, stream grpc.ServerStreamingServer[pullsingv1.Update]) error {
-	environment, err := s.service.AuthenticateEnvironment(stream.Context(), request.GetEnvKey())
+	environment, err := s.service.AuthenticateEnvironment(stream.Context(), request.GetEnvApiKey())
 	if err != nil {
 		return mapGRPCError(err)
 	}

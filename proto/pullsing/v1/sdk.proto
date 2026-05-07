@@ -39,11 +39,11 @@ message Update {
 }
 
 message GetSnapshotRequest {
-  string env_key = 1;
+  string env_api_key = 1;
 }
 
 message StreamUpdatesRequest {
-  string env_key = 1;
+  string env_api_key = 1;
   uint64 since_revision = 2;
 }
 

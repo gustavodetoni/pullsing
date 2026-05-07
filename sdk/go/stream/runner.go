@@ -26,9 +26,9 @@ type Observer interface {
 }
 
 type RunnerConfig struct {
-	EnvKey  string
-	Backoff BackoffConfig
-	Logger  Logger
+	EnvAPIKey string
+	Backoff   BackoffConfig
+	Logger    Logger
 }
 
 type Runner struct {
@@ -75,7 +75,7 @@ func (r *Runner) Run(ctx context.Context) error {
 }
 
 func (r *Runner) runOnce(ctx context.Context) error {
-	snapshot, err := r.service.GetSnapshot(ctx, r.cfg.EnvKey)
+	snapshot, err := r.service.GetSnapshot(ctx, r.cfg.EnvAPIKey)
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func (r *Runner) runOnce(ctx context.Context) error {
 	})
 	r.backoff.Reset()
 
-	stream, err := r.service.StreamUpdates(ctx, r.cfg.EnvKey, snapshot.GetRevision())
+	stream, err := r.service.StreamUpdates(ctx, r.cfg.EnvAPIKey, snapshot.GetRevision())
 	if err != nil {
 		return err
 	}

@@ -77,12 +77,12 @@ func NewSDKService(repo SDKRepository) *SDKService {
 	return &SDKService{repo: repo}
 }
 
-func (s *SDKService) AuthenticateEnvironment(ctx context.Context, envKey string) (domain.Environment, error) {
-	if envKey == "" {
+func (s *SDKService) AuthenticateEnvironment(ctx context.Context, envAPIKey string) (domain.Environment, error) {
+	if envAPIKey == "" {
 		return domain.Environment{}, ErrUnauthorized
 	}
 
-	sum := sha256.Sum256([]byte(envKey))
+	sum := sha256.Sum256([]byte(envAPIKey))
 	environment, err := s.repo.GetEnvironmentByAPIKeyHash(ctx, hex.EncodeToString(sum[:]))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -94,8 +94,8 @@ func (s *SDKService) AuthenticateEnvironment(ctx context.Context, envKey string)
 	return environment, nil
 }
 
-func (s *SDKService) GetSnapshot(ctx context.Context, envKey string) (Snapshot, error) {
-	environment, err := s.AuthenticateEnvironment(ctx, envKey)
+func (s *SDKService) GetSnapshot(ctx context.Context, envAPIKey string) (Snapshot, error) {
+	environment, err := s.AuthenticateEnvironment(ctx, envAPIKey)
 	if err != nil {
 		return Snapshot{}, err
 	}

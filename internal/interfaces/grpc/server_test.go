@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 )
 
-func TestGetSnapshotRejectsInvalidEnvKey(t *testing.T) {
+func TestGetSnapshotRejectsInvalidEnvAPIKey(t *testing.T) {
 	t.Parallel()
 
 	client, cleanup := newTestClient(t, &fakeSDKService{
@@ -24,7 +24,7 @@ func TestGetSnapshotRejectsInvalidEnvKey(t *testing.T) {
 	}, grpcinfra.NewHub(1))
 	defer cleanup()
 
-	_, err := client.GetSnapshot(context.Background(), &pullsingv1.GetSnapshotRequest{EnvKey: "invalid"})
+	_, err := client.GetSnapshot(context.Background(), &pullsingv1.GetSnapshotRequest{EnvApiKey: "invalid"})
 	if status.Code(err) != codes.Unauthenticated {
 		t.Fatalf("GetSnapshot() code = %s, want %s", status.Code(err), codes.Unauthenticated)
 	}
@@ -69,7 +69,7 @@ func TestStreamUpdatesSendsBacklogAndRealtimeChanges(t *testing.T) {
 	defer cleanup()
 
 	stream, err := client.StreamUpdates(context.Background(), &pullsingv1.StreamUpdatesRequest{
-		EnvKey:        "psk_valid",
+		EnvApiKey:     "psk_valid",
 		SinceRevision: 1,
 	})
 	if err != nil {
@@ -136,18 +136,18 @@ type fakeSDKService struct {
 	updateBatches  map[uint64][]application.Update
 }
 
-func (f *fakeSDKService) AuthenticateEnvironment(_ context.Context, envKey string) (domain.Environment, error) {
-	if envKey == "" || envKey == "invalid" {
+func (f *fakeSDKService) AuthenticateEnvironment(_ context.Context, envAPIKey string) (domain.Environment, error) {
+	if envAPIKey == "" || envAPIKey == "invalid" {
 		return domain.Environment{}, application.ErrUnauthorized
 	}
 	return f.environment, nil
 }
 
-func (f *fakeSDKService) GetSnapshot(_ context.Context, envKey string) (application.Snapshot, error) {
+func (f *fakeSDKService) GetSnapshot(_ context.Context, envAPIKey string) (application.Snapshot, error) {
 	if f.getSnapshotErr != nil {
 		return application.Snapshot{}, f.getSnapshotErr
 	}
-	if envKey == "" || envKey == "invalid" {
+	if envAPIKey == "" || envAPIKey == "invalid" {
 		return application.Snapshot{}, application.ErrUnauthorized
 	}
 	return f.getSnapshot, nil
