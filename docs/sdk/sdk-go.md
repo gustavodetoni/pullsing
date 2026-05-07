@@ -2,24 +2,24 @@
 
 ## Objetivo
 
-O SDK Go do Pullsing existe para permitir avaliação local de feature flags e remote configuration com latência previsível e sem dependência de rede no hot path. O contrato esperado para o MVP é:
+O SDK Go do Pullsing existe para permitir avaliacao local de feature flags e remote configuration com latencia previsivel e sem dependencia de rede no hot path. No MVP atual ele ja cobre:
 
 - carregar um snapshot inicial do ambiente via gRPC;
-- manter esse snapshot atualizado por streaming de mudanças incrementais;
-- avaliar flags localmente usando o último estado válido em memória;
-- continuar funcionando mesmo durante falhas transitórias de rede.
+- manter esse snapshot atualizado por streaming de mudancas incrementais;
+- avaliar flags localmente usando o ultimo estado valido em memoria;
+- continuar funcionando mesmo durante falhas transitorias de rede.
 
-Este documento descreve o contrato que já existe no repositório, as metas de implementação e o que ainda falta.
+Este documento descreve o que ja esta implementado no repositorio, a API publica atual e os limites conhecidos do MVP.
 
-## Estado atual no repositório
+## Estado atual no repositorio
 
-Hoje o módulo `sdk/go` já existe como módulo Go separado:
+O modulo `sdk/go` existe como modulo Go separado:
 
 ```go
 module github.com/gustavodetoni/pullsing/sdk/go
 ```
 
-Também já existe a estrutura inicial de diretórios:
+Ele esta organizado nos pacotes:
 
 - `sdk/go/client`
 - `sdk/go/cache`
@@ -28,16 +28,23 @@ Também já existe a estrutura inicial de diretórios:
 - `sdk/go/types`
 - `sdk/go/examples`
 
-Os diretórios já contêm uma implementação inicial funcional de bootstrap por snapshot, stream incremental, reconnect e avaliação local para flags booleanas.
+Os pacotes acima ja implementam:
+
+- bootstrap por `GetSnapshot`;
+- stream incremental por `StreamUpdates`;
+- reconnect com reuso da ultima revisao aplicada;
+- cache local em memoria;
+- avaliacao local de flags booleanas;
+- exemplo executavel em `sdk/go/examples/simple`.
 
 ## Contrato gRPC atual
 
-O serviço exposto para o SDK é `SDKService` com dois métodos:
+O servico exposto para o SDK e `SDKService` com dois metodos:
 
 - `GetSnapshot(GetSnapshotRequest) returns (Snapshot)`
 - `StreamUpdates(StreamUpdatesRequest) returns (stream Update)`
 
-### Identificação do ambiente
+### Identificacao do ambiente
 
 As duas chamadas usam `env_api_key`:
 
@@ -55,160 +62,191 @@ O protobuf atual define:
 - `Flag.enabled`
 - `Flag.bool_value`
 
-Para o MVP, o único tipo explicitamente definido é `FLAG_TYPE_BOOL`. Isso é coerente com a meta atual do projeto: começar com flags booleanas antes de expandir para outros tipos de configuração.
+Para o MVP, o unico tipo explicitamente definido e `FLAG_TYPE_BOOL`. Isso e coerente com a meta atual do projeto: comecar com flags booleanas antes de expandir para outros tipos de configuracao.
 
-Implicação prática para o SDK:
+Implicacao pratica para o SDK:
 
-- a avaliação local inicial pode ser focada em booleanos;
-- o cache local precisa preservar ao menos `key`, `enabled`, `type` e `bool_value`;
-- a API pública do SDK deve deixar clara a diferença entre "flag desabilitada" e "flag inexistente", porque o protobuf atual não define isso sozinho.
+- a avaliacao local atual e focada em booleanos;
+- o cache local preserva `key`, `enabled`, `type` e `bool_value`;
+- a API publica atual para leitura e `Enabled(key string) bool`.
 
 ### Snapshot inicial
 
-`Snapshot` contém:
+`Snapshot` contem:
 
 - `revision`
 - `flags`
 
-Interpretação esperada para o SDK:
+Comportamento implementado no SDK atual:
 
-- o SDK faz `GetSnapshot` no bootstrap;
+- o cliente faz `GetSnapshot` durante a inicializacao;
 - armazena o conjunto completo de flags do ambiente;
 - registra a `revision` mais recente recebida;
-- usa esse estado como base para avaliação local.
+- usa esse estado como base para avaliacao local.
 
-O contrato não descreve ainda paginação, compressão, checksum, expiração de snapshot ou estratégia de cold start offline. Se essas capacidades forem necessárias, devem aparecer depois no contrato ou na camada de transporte.
+O contrato nao descreve ainda paginacao, compressao, checksum, expiracao de snapshot ou estrategia de cold start offline. Se essas capacidades forem necessarias, devem aparecer depois no contrato ou na camada de transporte.
 
-### Atualizações incrementais
+### Atualizacoes incrementais
 
-`Update` contém:
+`Update` contem:
 
 - `revision`
 - `mutations`
 
-Cada `FlagMutation` contém:
+Cada `FlagMutation` contem:
 
 - `type`
 - `key`
 - `flag`
 
-Os tipos de mutação atuais são:
+Os tipos de mutacao atuais sao:
 
 - `MUTATION_TYPE_UPSERT`
 - `MUTATION_TYPE_DELETE`
 
-Interpretação esperada para o SDK:
+Comportamento implementado no SDK atual:
 
-- iniciar `StreamUpdates` com `since_revision` igual à revisão mais recente do snapshot local;
-- aplicar `UPSERT` como inserção/atualização idempotente no cache local;
+- iniciar `StreamUpdates` com `since_revision` igual a revisao mais recente do snapshot local;
+- aplicar `UPSERT` como insercao/atualizacao idempotente no cache local;
 - aplicar `DELETE` removendo a flag pelo `key`;
-- atualizar a revisão local apenas após aplicar com sucesso o `Update`.
+- atualizar a revisao local apenas apos aplicar com sucesso o `Update`;
+- reconectar em caso de falha usando a ultima revisao local conhecida.
 
-O protobuf não define explicitamente semântica para lacuna de revisão, replay, deduplicação ou re-sync obrigatório. A implementação do SDK deve assumir que esses casos podem acontecer e ter uma estratégia clara, por exemplo:
+O protobuf nao define explicitamente semantica para lacuna de revisao, replay, deduplicacao ou re-sync obrigatorio. A implementacao atual assume fluxo monotonicamente crescente; qualquer extensao desse comportamento deve ser refletida no contrato.
 
-- se o stream falhar, reconectar com a última revisão aplicada;
-- se o servidor indicar inconsistência de revisão no futuro, forçar novo `GetSnapshot`;
-- tratar updates fora de ordem como erro operacional e não como sucesso silencioso.
+## API publica atual
 
-## Metas de implementação do SDK
+O ponto de entrada atual e `sdk/go/client`.
 
-O SDK Go ainda precisa ser implementado, mas o desenho esperado para o MVP pode seguir estes componentes.
+### Configuracao
+
+```go
+type Config struct {
+    EnvAPIKey   string
+    Addr        string
+    DialOptions []grpc.DialOption
+    Backoff     stream.BackoffConfig
+    Logger      stream.Logger
+}
+```
+
+Campos obrigatorios:
+
+- `EnvAPIKey`: API key do ambiente criada pela API admin;
+- `Addr`: endereco do servidor gRPC, por exemplo `localhost:50051`.
+
+### Cliente
+
+```go
+sdk, err := client.NewClient(ctx, client.Config{
+    EnvAPIKey: envAPIKey,
+    Addr:      "localhost:50051",
+})
+if err != nil {
+    return err
+}
+defer sdk.Close()
+```
+
+O `NewClient` valida a configuracao, abre a conexao gRPC e inicia um loop em background responsavel por snapshot inicial, stream e reconnect.
+
+Metodos publicos disponiveis hoje:
+
+- `Enabled(key string) bool`: retorna o estado local da flag booleana;
+- `Revision() uint64`: retorna a revisao local atual;
+- `Health() Health`: expoe estado de conectividade e ultimo erro observado;
+- `Close() error`: encerra o loop do stream e fecha a conexao gRPC.
+
+### Health
+
+```go
+type Health struct {
+    Connected    bool
+    LastRevision uint64
+    LastError    error
+    LastSyncTime time.Time
+}
+```
+
+Esse estado e util para observabilidade da sincronizacao sem afetar o hot path de avaliacao.
+
+## Estrutura dos pacotes
 
 ### `types`
 
-Tipos públicos mínimos:
-
-- representação de flag booleana;
-- representação de snapshot imutável;
-- erros bem definidos para bootstrap, stream e avaliação;
-- configuração do cliente.
+Contem os tipos de dominio usados pelo SDK, incluindo representacao de flag booleana e snapshot local.
 
 ### `cache`
 
-Responsabilidades esperadas:
-
-- manter o snapshot ativo em memória;
-- suportar troca atômica de snapshot;
-- permitir leitura lock-free ou com contenção mínima no caminho de avaliação;
-- expor a revisão atual.
-
-Uma abordagem coerente com as metas do projeto é usar snapshot imutável com atomic swap, em vez de mutação granular visível aos leitores.
+Responsavel por manter o snapshot ativo em memoria, aplicar mutacoes e expor leitura local da revisao e das flags.
 
 ### `stream`
 
-Responsabilidades esperadas:
-
-- abrir `StreamUpdates`;
-- reconectar automaticamente;
-- reaplicar `since_revision`;
-- repassar updates válidos para a camada de cache;
-- registrar falhas sem interromper a avaliação local.
+Encapsula o acesso gRPC ao `SDKService`, o loop de sincronizacao e a politica de reconnect.
 
 ### `evaluation`
 
-Responsabilidades esperadas:
-
-- avaliar `bool` localmente em O(1);
-- expor fallback explícito quando a flag não existir;
-- evitar qualquer acesso de rede, banco ou bloqueio pesado durante avaliação.
+Implementa a leitura booleana local em O(1) a partir do snapshot mantido em memoria.
 
 ### `client`
 
-Responsabilidades esperadas:
+Expoe a API publica e coordena bootstrap, lifecycle do stream, estado de saude e shutdown.
 
-- inicialização do SDK;
-- bootstrap por snapshot;
-- lifecycle do stream;
-- API pública para consulta de flags;
-- shutdown limpo via `context.Context`.
+## Comportamento atual no MVP
 
-## Comportamento esperado no MVP
+O comportamento atual do cliente segue estas propriedades:
 
-Mesmo sem código ainda, estas propriedades devem orientar a implementação:
+- bootstrap assincrono: o cliente inicia com cache vazio e carrega o primeiro snapshot no loop em background;
+- avaliacao local continua disponivel durante indisponibilidade de rede;
+- reconnect nao apaga o ultimo snapshot valido;
+- a ausencia de targeting avancado significa que a avaliacao e direta por chave;
+- a API publica atual e pequena e focada em flags booleanas.
 
-- bootstrap síncrono ou controlado: o chamador precisa saber quando há snapshot utilizável;
-- avaliação local continua disponível durante indisponibilidade de rede;
-- reconnect não pode apagar o último snapshot válido;
-- a ausência de implementação de targeting avançado significa que a avaliação inicial deve ser direta por chave;
-- a API pública deve ser pequena e previsível.
-
-Um formato plausível de uso, ainda não implementado, seria:
+Exemplo minimo de uso:
 
 ```go
-client, err := sdk.NewClient(ctx, sdk.Config{
-    EnvAPIKey: "psk_123",
-    Endpoint: "dns:///pullsing:50051",
+sdk, err := client.NewClient(ctx, client.Config{
+    EnvAPIKey: "psk_...",
+    Addr:      "localhost:50051",
 })
+if err != nil {
+    return err
+}
+defer sdk.Close()
 
-enabled := client.BoolValue("checkout_new_flow", false)
+enabled := sdk.Enabled("checkout-redesign")
+revision := sdk.Revision()
+health := sdk.Health()
+
+_, _, _ = enabled, revision, health
 ```
 
-Esse exemplo é apenas ilustrativo. O repositório ainda não define a API final do pacote.
+Um exemplo completo e executavel esta em `sdk/go/examples/simple/main.go`. Esse exemplo espera `500ms` antes da primeira leitura exatamente para dar tempo ao bootstrap inicial.
 
 ## O que falta
 
 Itens ausentes hoje:
 
-- testes de integração do SDK contra servidor com Postgres + Redis reais;
+- testes de integracao do SDK contra servidor com Postgres + Redis reais;
 - observabilidade mais profunda do loop de stream;
 - benchmarks reais do SDK;
-- expansão para tipos não booleanos e cenários de targeting.
+- expansao para tipos nao booleanos e cenarios de targeting.
 
-Também faltam decisões de produto e protocolo que impactam o SDK:
+Tambem faltam decisoes de produto e protocolo que impactam o SDK:
 
-- semântica exata para flag inexistente;
+- semantica exata para flag inexistente na API publica;
 - comportamento quando `enabled=false` e `bool_value=true`;
-- estratégia para revisão inválida ou atrasada;
-- autenticação/transporte além do `env_api_key`;
-- extensão futura para tipos não booleanos.
+- estrategia explicita para revisao invalida ou atrasada;
+- autenticacao/transporte alem do `env_api_key`;
+- extensao futura para tipos nao booleanos.
 
-## Critérios de aceitação sugeridos
+## Criterios de evolucao
 
-Quando o SDK Go começar a ser implementado, esta documentação deve ser atualizada junto com evidências concretas. Para o MVP, um conjunto razoável de critérios é:
+O repositorio ja atende ao nucleo do MVP do SDK. Para evolucoes futuras, um conjunto razoavel de criterios e:
 
-- conseguir bootstrap de um ambiente via `GetSnapshot`;
-- manter sincronização por `StreamUpdates`;
+- manter bootstrap de um ambiente via `GetSnapshot`;
+- manter sincronizacao por `StreamUpdates`;
 - avaliar flags booleanas localmente sem rede;
-- reconectar sem perder o último snapshot válido;
-- ter testes cobrindo bootstrap, reconnect e aplicação de mutações;
-- publicar benchmarks reprodutíveis em `docs/benchmarks/benchmark.md`.
+- reconectar sem perder o ultimo snapshot valido;
+- ampliar cobertura com testes de integracao;
+- publicar benchmarks reprodutiveis em `docs/benchmarks/benchmark.md`.
