@@ -35,7 +35,7 @@ Ainda falta:
 
 ## Quickstart
 
-O caminho mais curto para subir a stack local esta em [docs/quickstart.md](/Users/gustavodetoni/conductor/workspaces/pullsing/pattaya/docs/quickstart.md).
+O caminho mais curto para subir a stack local esta em [docs/quickstart.md](docs/quickstart.md).
 
 Resumo rapido:
 
@@ -55,11 +55,11 @@ go run ./cmd/server
 
 ## Documentacao
 
-- [Quickstart](/Users/gustavodetoni/conductor/workspaces/pullsing/pattaya/docs/quickstart.md)
-- [Arquitetura](/Users/gustavodetoni/conductor/workspaces/pullsing/pattaya/docs/architecture/architecture.md)
-- [SDK Go](/Users/gustavodetoni/conductor/workspaces/pullsing/pattaya/docs/sdk/sdk-go.md)
-- [Benchmarks](/Users/gustavodetoni/conductor/workspaces/pullsing/pattaya/docs/benchmarks/benchmark.md)
-- [ADRs](/Users/gustavodetoni/conductor/workspaces/pullsing/pattaya/docs/adr/README.md)
+- [Quickstart](docs/quickstart.md)
+- [Arquitetura](docs/architecture/architecture.md)
+- [SDK Go](docs/sdk/sdk-go.md)
+- [Benchmarks](docs/benchmarks/benchmark.md)
+- [ADRs](docs/adr/README.md)
 
 ## Estrutura do repositorio
 
