@@ -1,43 +1,65 @@
 # Pullsing
 
-Pullsing e uma plataforma de **feature flags** e **remote configuration** pensada para entregar o essencial com baixa latencia, topologia simples e uma experiencia de desenvolvimento direta.
+Pullsing é uma plataforma de **feature flags** e **remote configuration** pensada para entregar o essencial com baixa latência, topologia simples e uma experiência de desenvolvimento direta.
 
-O foco do MVP e bem definido:
+O foco do MVP:
 
-- **avaliacao local no SDK** para evitar rede no hot path da aplicacao
-- **atualizacao em tempo real** por streaming gRPC
+- **Avaliação local no SDK** para evitar rede no hot path da aplicação
+- **Atualização em tempo real** por streaming gRPC
 - **PostgreSQL** como source of truth
 - **Redis** para cache e fanout de eventos
 - **Go** no servidor e no SDK Go
 
-Hoje o repositorio ja possui a base do servidor admin, o schema inicial no Postgres, o contrato protobuf do SDK, a publicacao de eventos via Redis, o servidor gRPC para snapshot/update e o SDK Go com bootstrap por snapshot e stream incremental.
+## Como funciona (fluxo)
 
-## Estado atual do MVP
+```mermaid
+flowchart LR
+  A["Admin API - HTTP"] -->|cria e atualiza flags| B[(PostgreSQL)]
+  A -->|publica evento| C["Redis PubSub"]
 
-Ja existe:
+  C -->|evento| D["Servidor: subscriber e fanout"]
+  D -->|empurra update| E["gRPC StreamUpdates"]
 
-- API HTTP admin para criar `projects`, `environments` e `flags`
-- rotacao de API key por ambiente
-- migracao inicial do Postgres
-- revisao monotonicamente crescente por ambiente
-- publicacao de mudancas de flag em Redis Pub/Sub
-- subscriber Redis + fanout interno para clientes gRPC
-- contrato protobuf em `proto/pullsing/v1/sdk.proto`
-- servidor gRPC com `GetSnapshot` e `StreamUpdates`
-- autenticacao do SDK via `env_api_key` usando a API key do ambiente
-- stream com backlog por revisao e desconexao de cliente lento
-- SDK Go com bootstrap, reconnect e avaliacao local
-- testes unitarios da camada de aplicacao e handlers HTTP
+  F["SDK Go"] -->|bootstrap| G["gRPC GetSnapshot"]
+  G -->|snapshot| F
+  E -->|updates incrementais| F
+  F -->|avaliação local O1| H["Aplicação"]
+```
 
-Ainda falta:
+## Exemplo fluxo
 
-- benchmarks medidos em ambiente reproduzivel
+```mermaid
+flowchart LR
+  subgraph Server["Servidor Pullsing - Go"]
+    Admin["Admin API - HTTP/JSON"]
+    SDKAPI["SDK API - gRPC"]
+    Sub["Redis subscriber"]
+  end
+
+  Postgres[(PostgreSQL)]
+  Redis["Redis PubSub"]
+  Client["Aplicação"]
+  SDK["SDK Go"]
+
+  Client --> SDK
+
+  Admin -->|CRUD de recursos| Postgres
+  Admin -->|publica mudanças| Redis
+
+  Sub -->|consome eventos| Redis
+  Sub -->|fanout interno| SDKAPI
+
+  SDK -->|GetSnapshot| SDKAPI
+  SDKAPI -->|snapshot| SDK
+  SDK -->|StreamUpdates| SDKAPI
+  SDKAPI -->|updates incrementais| SDK
+```
 
 ## Quickstart
 
-O caminho mais curto para subir a stack local esta em [docs/quickstart.md](docs/quickstart.md).
+O caminho mais curto para subir a stack local está em [docs/quickstart.md](docs/quickstart.md).
 
-Resumo rapido:
+Resumo rápido:
 
 ```bash
 make up
@@ -53,7 +75,7 @@ PULLSING_REDIS_ADDR='localhost:6379' \
 go run ./cmd/server
 ```
 
-## Documentacao
+## Documentação
 
 - [Quickstart](docs/quickstart.md)
 - [Arquitetura](docs/architecture/architecture.md)
@@ -61,14 +83,14 @@ go run ./cmd/server
 - [Benchmarks](docs/benchmarks/benchmark.md)
 - [ADRs](docs/adr/README.md)
 
-## Estrutura do repositorio
+## Estrutura do repositório
 
 ```text
 cmd/server/                 entrypoint do servidor
 internal/domain/            entidades e invariantes
 internal/application/       casos de uso do admin
 internal/interfaces/http/   API HTTP/JSON do admin
-internal/infrastructure/    Postgres, Redis e configuracao
+internal/infrastructure/    Postgres, Redis e configuração
 proto/pullsing/v1/          contrato protobuf do SDK
 sdk/go/                     modulo separado do SDK Go
 migrations/                 schema SQL inicial
@@ -90,7 +112,7 @@ Endpoints atuais:
 - `DELETE /v1/environments/{environment_id}/flags/{flag_id}`
 - `POST /v1/environments/{environment_id}/api-keys:rotate`
 
-Exemplo de criacao de flag booleana:
+Exemplo de criação de flag booleana:
 
 ```bash
 curl -X POST http://localhost:8080/v1/environments/1/flags \
