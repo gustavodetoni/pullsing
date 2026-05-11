@@ -10,7 +10,12 @@ O foco do MVP:
 - **Redis** para cache e fanout de eventos
 - **Go** no servidor e no SDK Go
 
-## Como funciona (fluxo)
+## Diagrama de arquitetura
+
+![Exemplo fluxo do Pullsing](docs/assets/pullsing-flow.svg)
+
+
+## Exemplo fluxo
 
 ```mermaid
 flowchart LR
@@ -24,35 +29,6 @@ flowchart LR
   G -->|snapshot| F
   E -->|updates incrementais| F
   F -->|avaliação local O1| H["Aplicação"]
-```
-
-## Exemplo fluxo
-
-```mermaid
-flowchart LR
-  subgraph Server["Servidor Pullsing - Go"]
-    Admin["Admin API - HTTP/JSON"]
-    SDKAPI["SDK API - gRPC"]
-    Sub["Redis subscriber"]
-  end
-
-  Postgres[(PostgreSQL)]
-  Redis["Redis PubSub"]
-  Client["Aplicação"]
-  SDK["SDK Go"]
-
-  Client --> SDK
-
-  Admin -->|CRUD de recursos| Postgres
-  Admin -->|publica mudanças| Redis
-
-  Sub -->|consome eventos| Redis
-  Sub -->|fanout interno| SDKAPI
-
-  SDK -->|GetSnapshot| SDKAPI
-  SDKAPI -->|snapshot| SDK
-  SDK -->|StreamUpdates| SDKAPI
-  SDKAPI -->|updates incrementais| SDK
 ```
 
 ## Quickstart
